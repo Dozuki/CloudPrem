@@ -1,0 +1,455 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Cloudprem deployment pipeline
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Required Configuration
+      Parameters:
+      - DozukiLicense
+      - OwnerName
+      - Environment
+
+Parameters:
+
+  DozukiLicense:
+    Type: String
+    MinLength: 50
+    Description: The contents of the .rli license file provided by Dozuki
+    NoEcho: true
+
+  RepositoryUrl:
+    Type: String
+    Default: https://github.com/nclouds/doz-infrastructure-live.git
+    Description: SSH/HTTP URL of the git repository containing the Cloudprem parameters
+
+  RepositoryBranch:
+    Type: String
+    Default: main
+    Description: Branch that contains the Cloudprem parameters
+
+  RepositoryPath:
+    Type: String
+    Default: development
+    Description: Path inside the git repository that contains the Cloudprem parameters for this environment. Don't use the same path for multiple pipelines
+
+  OverrideRepositoryParameters:
+    Type: String
+    Default: true
+    Description: Override 'identifier', 'region' and 'environment' parameters from the repository with the current template parameters
+
+  PipelineAction:
+    Type: String
+    Default: Apply
+    AllowedValues: [ Apply, Destroy ]
+    Description: Action that the pipeline will execute. Apply will create or update the resources and destroy will delete the Terraform stack
+
+  Identifier:
+    Type: String
+    Default: ""
+    AllowedPattern: ^[a-z0-9]*$
+    MaxLength: 10
+    ConstraintDescription: Must be no longer than 10 alpha-numeric characters and must be lowercase.
+    Description: A name identifier to add as prefix to resources names
+
+  OwnerName:
+    Type: String
+    Description: An arbitrary tag name for the owner of the environment pipeline
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedPattern: ^[a-z0-9]*$
+    MaxLength: 5
+    ConstraintDescription: Must be no longer than 5 alpha-numeric characters and must be lowercase.
+    Description: >-
+      Environment name to append to resources names and tags.
+
+Conditions:
+
+  IdentifierSet: !Not [ !Equals [ !Ref Identifier, "" ] ]
+
+  OverrideRepositoryParameters: !Equals [ !Ref OverrideRepositoryParameters, true ]
+
+  DestroyResources: !Equals [ !Ref PipelineAction, 'Destroy' ]
+
+Mappings:
+
+  PartitionMap: 
+    aws:
+      ConsoleUrl: console.aws.amazon.com
+    aws-us-gov:
+      ConsoleUrl: console.amazonaws-us-gov.com
+
+Resources:
+
+  DozukiLicenseParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !If
+        - IdentifierSet
+        - !Sub /${Identifier}/cloudprem/${Environment}/license
+        - !Sub /cloudprem/${Environment}/license
+      Description: The contents of the Dozuki license file provided to you.
+      Type: String
+      Value: !Ref DozukiLicense
+
+#   # ############### Roles ##############
+
+  DeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !If
+        - IdentifierSet
+        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-deployment
+        - !Sub cloudprem-${Environment}-${AWS::Region}-deployment
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS:
+            - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: !If
+        - IdentifierSet
+        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-deployment
+        - !Sub cloudprem-${Environment}-${AWS::Region}-deployment
+        PolicyDocument:
+          Statement: # TODO narrow permissions to least privilege for Cloudprem deployment
+          - Effect: Allow
+            Action: 
+            - '*'
+            Resource: '*'
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !If
+        - IdentifierSet
+        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-codebuild
+        - !Sub cloudprem-${Environment}-${AWS::Region}-codebuild
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: codebuild.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: !If
+        - IdentifierSet
+        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-codebuild
+        - !Sub cloudprem-${Environment}-${AWS::Region}-codebuild
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: 
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: '*'
+          - Effect: Allow
+            Action: 
+            - s3:*
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - sts:AssumeRole
+            Resource:
+            - !GetAtt DeploymentRole.Arn
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !If
+        - IdentifierSet
+        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-codepipeline
+        - !Sub cloudprem-${Environment}-${AWS::Region}-codepipeline
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - codepipeline.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: !If
+        - IdentifierSet
+        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-codepipeline
+        - !Sub cloudprem-${Environment}-${AWS::Region}-codepipeline
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - codecommit:CancelUploadArchive
+            - codecommit:GetBranch
+            - codecommit:GetCommit
+            - codecommit:GetUploadArchiveStatus
+            - codecommit:UploadArchive
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - codebuild:BatchGetBuilds
+            - codebuild:StartBuild
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - iam:PassRole
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - cloudwatch:*
+            - s3:*
+            Resource: '*'
+
+  # ############# CodeBuild ############
+
+  TfPlanCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !If
+        - IdentifierSet
+        - !Sub ${Identifier}-cloudprem-${Environment}-terraform-plan
+        - !Sub cloudprem-${Environment}-terraform-plan
+      Description: !Sub Build project for cloudprem-${Environment} Terraform plan
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub        
+          - |
+            version: 0.2
+            phases:
+              install:
+                runtime-versions:
+                  golang: 1.14
+                commands:
+                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/0.14.4/terraform_0.14.4_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
+                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.26.4/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
+                  - aws_credentials=$(aws sts assume-role --role-arn ${DeploymentRole.Arn} --role-session-name "Terraform")
+                  - export AWS_ACCESS_KEY_ID=$(echo $aws_credentials|jq '.Credentials.AccessKeyId'|tr -d '"')
+                  - export AWS_SECRET_ACCESS_KEY=$(echo $aws_credentials|jq '.Credentials.SecretAccessKey'|tr -d '"')
+                  - export AWS_SESSION_TOKEN=$(echo $aws_credentials|jq '.Credentials.SessionToken'|tr -d '"')
+              build:
+                commands:
+                - cd ${RepositoryPath}
+                - terragrunt init --terragrunt-non-interactive
+                - terragrunt plan -out $CODEBUILD_SRC_DIR/plan.json ${overrides} ${command}
+                - 'export PLAN_LOGS=$(terragrunt show $CODEBUILD_SRC_DIR/plan.json -no-color | grep "Plan: ")'
+                - echo "$PLAN_LOGS"
+            artifacts:
+              discard-paths: yes
+              files:
+                - $CODEBUILD_SRC_DIR/plan.json
+            env:
+              exported-variables:
+                - PLAN_LOGS
+                - CODEBUILD_BUILD_ID
+              shell: bash
+          - overrides: !If 
+              - OverrideRepositoryParameters
+              - !Sub -var 'identifier=${Identifier}' -var 'region=${AWS::Region}' -var 'environment=${Environment}'
+              - ''
+            command: !If 
+              - DestroyResources
+              - -destroy
+              - ''
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Type: LINUX_CONTAINER
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        PrivilegedMode: false
+        EnvironmentVariables:
+        - Name: Environment
+          Value: !Ref Environment
+        - Name: TF_INPUT
+          Value: true
+      LogsConfig:
+        CloudWatchLogs:
+          Status:  ENABLED
+      TimeoutInMinutes: 35
+      Tags:
+      - Key: Name
+        Value: !If
+        - IdentifierSet
+        - !Sub ${Identifier}-cloudprem-${Environment}-terraform-plan
+        - !Sub cloudprem-${Environment}-terraform-plan
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: Environment
+        Value: !Ref Environment
+
+  TfApplyCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !If
+        - IdentifierSet
+        - !Sub ${Identifier}-cloudprem-${Environment}-terraform-apply
+        - !Sub cloudprem-${Environment}-terraform-apply
+      Description: !Sub Build project for cloudprem-${Environment} Terraform apply
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub
+          - |
+            version: 0.2
+            phases:
+              install:
+                runtime-versions:
+                  golang: 1.14
+                commands:
+                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/0.14.4/terraform_0.14.4_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
+                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.26.4/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
+                  - aws_credentials=$(aws sts assume-role --role-arn ${DeploymentRole.Arn} --role-session-name "Terraform")
+                  - export AWS_ACCESS_KEY_ID=$(echo $aws_credentials|jq '.Credentials.AccessKeyId'|tr -d '"')
+                  - export AWS_SECRET_ACCESS_KEY=$(echo $aws_credentials|jq '.Credentials.SecretAccessKey'|tr -d '"')
+                  - export AWS_SESSION_TOKEN=$(echo $aws_credentials|jq '.Credentials.SessionToken'|tr -d '"')
+              build:
+                commands:
+                - cd ${RepositoryPath}
+                - terragrunt init --terragrunt-non-interactive
+                - ${command}
+          - command: !If
+              - DestroyResources
+              - !If # We are using refresh before the destroy due to Terraform 0.14 bug https://github.com/terraform-aws-modules/terraform-aws-eks/issues/1162
+                - OverrideRepositoryParameters
+                - !Sub terragrunt refresh -var 'identifier=${Identifier}' -var 'region=${AWS::Region}' -var 'environment=${Environment}' && terragrunt destroy -auto-approve -var 'identifier=${Identifier}' -var 'region=${AWS::Region}' -var 'environment=${Environment}'
+                - terragrunt refresh && terragrunt destroy -auto-approve
+              - terragrunt apply $CODEBUILD_SRC_DIR_PlanArtifact/plan.json
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Type: LINUX_CONTAINER
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        PrivilegedMode: false
+        EnvironmentVariables:
+        - Name: Environment
+          Value: !Ref Environment
+      LogsConfig:
+        CloudWatchLogs:
+          Status:  ENABLED
+      TimeoutInMinutes: 35
+      Tags:
+      - Key: Name
+        Value: !If
+        - IdentifierSet
+        - !Sub ${Identifier}-cloudprem-${Environment}-terraform-apply
+        - !Sub cloudprem-${Environment}-terraform-apply
+      - Key: Owner
+        Value: !Ref OwnerName
+      - Key: Environment
+        Value: !Ref Environment
+
+  # ########### CodePipeline ###########
+
+  ProjectPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !If
+        - IdentifierSet
+        - !Sub ${Identifier}-cloudprem-${Environment}
+        - !Sub cloudprem-${Environment}
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      Stages:
+      - Name: Checkout
+        Actions:
+        - Name: Checkout
+          Namespace: SourceVariables
+          InputArtifacts: []
+          ActionTypeId:
+            Version: !ImportValue cloudprem-source-action-version
+            Category: Source
+            Owner: Custom
+            Provider: !ImportValue cloudprem-source-action-provider
+          Configuration:
+            GitUrl: !Ref RepositoryUrl
+            Branch: !Ref RepositoryBranch
+          OutputArtifacts:
+          - Name: SourceCodeArtifact
+          RunOrder: 1
+      - Name: Plan
+        Actions:
+        - Name: Plan
+          Namespace: BuildVariables
+          InputArtifacts:
+          - Name: SourceCodeArtifact
+          ActionTypeId:
+            Category: Build
+            Owner: AWS
+            Version: 1
+            Provider: CodeBuild
+          OutputArtifacts:
+          - Name: PlanArtifact
+          Configuration:
+            ProjectName: !Ref TfPlanCodeBuildProject
+          RunOrder: 1
+      - Name: Approval
+        Actions:
+        - Name: Approval
+          ActionTypeId:
+            Category: Approval
+            Owner: AWS
+            Version: 1
+            Provider: Manual
+          Configuration:
+            CustomData: !Sub |
+              #{BuildVariables.PLAN_LOGS}
+            ExternalEntityLink: !Sub 
+            - https://console.aws.amazon.com/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
+            - ConsoleUrl: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ConsoleUrl]
+          RunOrder: 1
+      - Name: !If [ DestroyResources, Destroy, Apply]
+        Actions:
+        - Name: !If [ DestroyResources, Destroy, Apply]
+          InputArtifacts:
+            - Name: SourceCodeArtifact
+            - Name: PlanArtifact
+          ActionTypeId:
+            Category: Build
+            Owner: AWS
+            Version: 1
+            Provider: CodeBuild
+          OutputArtifacts:
+            - Name: ApplyArtifact
+          Configuration:
+            ProjectName: !Ref TfApplyCodeBuildProject
+            PrimarySource: SourceCodeArtifact
+          RunOrder: 1
+      ArtifactStore:
+        Type: S3
+        Location: !ImportValue cloudprem-bucket-name
+    DependsOn: 
+    - TfPlanCodeBuildProject
+    - TfApplyCodeBuildProject
+
+Outputs:
+
+  LicenseParameterName:
+    Description: Name of the Dozuki license Parameter Store parameter
+    Value: !Ref DozukiLicenseParameter
+
+  PlanCodeBuildProject:
+    Description: Name of the Terraform plan CodeBuild project
+    Value: !Ref TfPlanCodeBuildProject
+
+  ApplyCodeBuildProject:
+    Description: Name of the Terraform apply CodeBuild project
+    Value: !Ref TfApplyCodeBuildProject
+
+  Pipeline:
+    Description: CodePipeline pipeline name
+    Value: !Ref ProjectPipeline
+
+  PipelineAction:
+    Description: Terraform action that this pipeline executes
+    Value: !Ref PipelineAction
+  

@@ -1,0 +1,215 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Transform:
+- AWS::Serverless-2016-10-31
+
+Description: >-
+  CodePipeline resources required for Cloudprem pipelines
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Required Configuration
+      Parameters:
+      - OwnerName
+
+  AWS::ServerlessRepo::Application:
+    Name: dozuki-codepipeline
+    Description: Creates CodePipeline resources to support the Cloudprem deployment pipelines
+    Author: Ronaldo
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    LicenseUrl: LICENSE
+    Labels: ['codepipeline']
+    HomePageUrl: https://github.com/nclouds/doz-cloudprem-pipeline
+    SemanticVersion: 1.0.4 # TODO Reset to 1.0.0
+    SourceCodeUrl: https://github.com/nclouds/doz-cloudprem-pipeline
+
+Parameters:
+
+  SourceActionVersion:
+    Type: String
+    Description: Version of the custom source action for CodePipeline. Update the version if required
+    Default: '1'
+
+  SourceActionProvider:
+    Type: String
+    Description: Provider name of the custom source action for CodePipeline
+    Default: Git
+
+  OwnerName:
+    Type: String
+    Description: An arbitrary tag name for the owner of the Stack
+
+Globals:
+
+  Function:
+    Runtime: python2.7
+    Timeout: 300
+    MemorySize: 128
+    Tags:
+      Owner: !Ref OwnerName
+
+Resources:
+
+  CustomSourceAction:
+    Type: AWS::CodePipeline::CustomActionType
+    Properties:
+      Category: Source
+      Provider: !Ref SourceActionProvider
+      Version: !Ref SourceActionVersion
+      Settings:
+        EntityUrlTemplate: https://github.com/nclouds/doz-cloudprem-pipeline
+        ExecutionUrlTemplate: !Sub https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logsV2:log-groups/log-group/$252Faws$252Flambda$252F${GitPullFunction}
+      ConfigurationProperties:
+        - Name: GitUrl
+          Required: true
+          Key: false
+          Secret: false
+          Queryable: false 
+          Description: SSH git clone URL.
+          Type: String
+        - Name: Branch
+          Required: true
+          Key: false
+          Secret: false
+          Queryable: false 
+          Description: Git branch to pull.
+          Type: String
+      InputArtifactDetails:
+        MaximumCount: 0
+        MinimumCount: 0
+      OutputArtifactDetails:
+        MaximumCount: 1
+        MinimumCount: 1
+
+  KeysBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub cloudprem-ssh-keys-${AWS::Region}-${AWS::AccountId}
+
+  KMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Git CodePipeline integration, encrypt and decrypt SSH keys
+      KeyPolicy:
+        Version: 2012-10-17
+        Statement:
+        - Sid: Allow access for Key Administrators
+          Effect: Allow
+          Principal:
+            AWS:
+            - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+          Action:
+          - kms:*
+          Resource: '*'
+        - Sid: Allow use of the key
+          Effect: Allow
+          Principal:
+            AWS:
+            - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+          Action:
+          - kms:Encrypt
+          - kms:Decrypt
+          - kms:ReEncrypt*
+          - kms:GenerateDataKey*
+          - kms:DescribeKey
+          Resource: '*'
+
+  CreateSSHKeyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub create-ssh-key
+      Description: >-
+        Creates SSH keys encrypted with KMS and stores them on S3
+      Handler: lambda_function.lambda_handler
+      CodeUri: functions/create-ssh-key
+      Policies:
+      - KMSEncryptPolicy:
+          KeyId: !Ref KMSKey
+      - S3CrudPolicy:
+          BucketName: !Ref KeysBucket
+  
+  CreateSSHKey:
+    Type: AWS::CloudFormation::CustomResource
+    Version: '1.0'
+    Properties:
+      ServiceToken: !GetAtt CreateSSHKeyFunction.Arn
+      KeyBucket: !Ref KeysBucket
+      Region: !Ref AWS::Region
+      KMSKey: !Ref KMSKey
+
+  GitPullFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub git-pull
+      Description: >-
+        Custom source action for CodePipeline. Pulls the source code from any Git repository.
+      Handler: lambda_function.lambda_handler
+      CodeUri: functions/git-pull
+      Policies:
+      - KMSDecryptPolicy:
+          KeyId: !Ref KMSKey
+      - S3CrudPolicy:
+          BucketName: !Ref S3ArtifactsBucket
+      - S3ReadPolicy:
+          BucketName: !Ref KeysBucket
+      - Statement:
+          Effect: Allow
+          Action:
+          - codepipeline:PollForJobs
+          - codepipeline:AcknowledgeJob
+          - codepipeline:PutJobSuccessResult
+          - codepipeline:PutJobFailureResult
+          Resource: '*'
+      Environment:
+        Variables:
+          CUSTOM_ACTION_VERSION: !Ref SourceActionVersion
+          CUSTOM_ACTION_PROVIDER: !Ref SourceActionProvider
+          KEYS_BUCKET: !Ref KeysBucket
+      Events:
+        CheckCodePipelineScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Description: Fire CodePipeline custom action polling
+            Enabled: true
+
+  S3ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub cloudprem-codepipeline-${AWS::Region}-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled
+
+Outputs:
+
+  PublicSSHKey:
+    Description: Public SSH key for the Git CodePipeline source stage. Add the SSH key to your git repository
+    Value: !Ref CreateSSHKey
+
+  BucketName:
+    Description: Codepipeline artifcats S3 bucket name
+    Value: !Ref S3ArtifactsBucket
+    Export:
+      Name: !Sub cloudprem-bucket-name
+
+  BucketArn:
+    Description: Codepipeline artifcats S3 bucket ARN
+    Value: !GetAtt S3ArtifactsBucket.Arn
+    Export:
+      Name: !Sub cloudprem-bucket-arn
+
+  SourceActionVersion:
+    Value: !Ref SourceActionVersion
+    Export:
+      Name: !Sub cloudprem-source-action-version
+
+  SourceActionProvider:
+    Value: !Ref SourceActionProvider
+    Export:
+      Name: !Sub cloudprem-source-action-provider

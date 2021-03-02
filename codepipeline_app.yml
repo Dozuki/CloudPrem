@@ -1,0 +1,67 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Transform:
+- AWS::Serverless-2016-10-31
+
+Description: >-
+  CodePipeline resources required for Cloudprem pipelines
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Required Configuration
+      Parameters:
+      - OwnerName
+
+Parameters:
+
+  SourceActionVersion:
+    Type: String
+    Description: Version of the custom source action for CodePipeline. Update the version if required
+    Default: '1'
+
+  SourceActionProvider:
+    Type: String
+    Description: Provider name of the custom source action for CodePipeline
+    Default: Git
+
+  OwnerName:
+    Type: String
+    Description: An arbitrary tag name for the owner of the environment pipeline
+
+Mappings:
+
+  PartitionMap: 
+    aws:
+      ServerlessRepoArn: arn:aws:serverlessrepo:us-west-2:695292474035:applications/dozuki-codepipeline
+    aws-us-gov:
+      ServerlessRepoArn: arn:aws-us-gov:serverlessrepo:us-gov-west-1:446787640263:applications/dozuki-codepipeline
+
+Resources:
+
+  DozukiCodepipeline:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location:
+        ApplicationId: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ServerlessRepoArn]
+        SemanticVersion: 1.0.4 # TODO Reset to 1.0.0
+      Parameters:
+        SourceActionVersion: !Ref SourceActionVersion
+        SourceActionProvider: !Ref SourceActionProvider
+        OwnerName: !Ref OwnerName
+
+Outputs:
+
+  PublicSSHKey:
+    Description: Public SSH key for the Git CodePipeline source stage. Add the SSH key to your git repository
+    Value: !GetAtt DozukiCodepipeline.Outputs.PublicSSHKey
+
+  BucketName:
+    Description: Codepipeline artifcats S3 bucket name
+    Value: !GetAtt DozukiCodepipeline.Outputs.BucketName
+
+  BucketArn:
+    Description: Codepipeline artifcats S3 bucket ARN
+    Value: !GetAtt DozukiCodepipeline.Outputs.BucketArn
