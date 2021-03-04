@@ -10,8 +10,8 @@ The pipelines infrastructure is defined across two CloudFormation templates:
 
 |||
 |-|-|
-| AWS | [![launch_stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=cloudprem-codepipeline&templateURL=https://s3.us-west-2.amazonaws.com/nclouds-cloudprem-assets/codepipeline_app.yml) |
-| GovCloud | [![launch_stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.amazonaws-us-gov.com/cloudformation/home#/stacks/new?stackName=cloudprem-codepipeline&templateURL=https://s3.us-west-2.amazonaws.com/nclouds-cloudprem-assets/codepipeline_app.yml) |
+| AWS | [![launch_stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=Dozuki-CloudPrem-Regional&templateURL=https://s3.us-west-1.amazonaws.com/dozuki-cloudprem-templates/codepipeline_app.yml) |
+| GovCloud | [![launch_stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.amazonaws-us-gov.com/cloudformation/home#/stacks/new?stackName=Dozuki-CloudPrem-Regional&templateURL=https://s3.us-west-1.amazonaws.com/dozuki-cloudprem-templates/codepipeline_app.yml) |
 
 The Cloudprem CodePipeline stack should be deployed once in every region you intend to deploy the CloudPrem infrastructure. This stack will create a Serverless Application which in turn creates an S3 artifacts bucket for CodePipeline as well as a custom source action to pull the source code from any git repository. The stack creates some stack exports that will be used by the Cloudprem pipelines.
 
@@ -26,8 +26,8 @@ The Cloudprem CodePipeline stack should be deployed once in every region you int
 
 |||
 |-|-|
-| AWS | [![launch_stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=cloudprem-pipeline-dev&templateURL=https://s3.us-west-2.amazonaws.com/nclouds-cloudprem-assets/git_pipeline.yml) |
-| GovCloud | [![launch_stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.amazonaws-us-gov.com/cloudformation/home#/stacks/new?stackName=cloudprem-pipeline-dev&templateURL=https://s3.us-west-2.amazonaws.com/nclouds-cloudprem-assets/git_pipeline.yml) |
+| AWS | [![launch_stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=Dozuki-CloudPrem-Dev&templateURL=https://s3.us-west-1.amazonaws.com/dozuki-cloudprem-templates/git_pipeline.yml) |
+| GovCloud | [![launch_stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.amazonaws-us-gov.com/cloudformation/home#/stacks/new?stackName=Dozuki-CloudPrem-Dev&templateURL=https://s3.us-west-2.amazonaws.com/dozuki-cloudprem-templates/git_pipeline.yml) |
 
 The Cloudprem Pipeline stack should be deployed once per environment. It deploys the actual pipeline as well as the CodeBuild projects for the pipeline execution.
 
