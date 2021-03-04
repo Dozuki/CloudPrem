@@ -35,7 +35,7 @@ Mappings:
 
   PartitionMap: 
     aws:
-      ServerlessRepoArn: arn:aws:serverlessrepo:us-west-2:695292474035:applications/dozuki-codepipeline
+      ServerlessRepoArn: arn:aws:serverlessrepo:us-west-2:010601635461:applications/dozuki-codepipeline
     aws-us-gov:
       ServerlessRepoArn: arn:aws-us-gov:serverlessrepo:us-gov-west-1:446787640263:applications/dozuki-codepipeline
 
@@ -46,7 +46,7 @@ Resources:
     Properties:
       Location:
         ApplicationId: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ServerlessRepoArn]
-        SemanticVersion: 1.0.4 # TODO Reset to 1.0.0
+        SemanticVersion: 1.0.0
       Parameters:
         SourceActionVersion: !Ref SourceActionVersion
         SourceActionProvider: !Ref SourceActionProvider

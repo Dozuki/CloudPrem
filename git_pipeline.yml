@@ -23,7 +23,7 @@ Parameters:
 
   RepositoryUrl:
     Type: String
-    Default: https://github.com/nclouds/doz-infrastructure-live.git
+    Default: https://github.com/Dozuki/CloudPrem-Config.git
     Description: SSH/HTTP URL of the git repository containing the Cloudprem parameters
 
   RepositoryBranch:

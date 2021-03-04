@@ -23,9 +23,9 @@ Metadata:
     ReadmeUrl: README.md
     LicenseUrl: LICENSE
     Labels: ['codepipeline']
-    HomePageUrl: https://github.com/nclouds/doz-cloudprem-pipeline
-    SemanticVersion: 1.0.4 # TODO Reset to 1.0.0
-    SourceCodeUrl: https://github.com/nclouds/doz-cloudprem-pipeline
+    HomePageUrl: https://github.com/Dozuki/CloudPrem
+    SemanticVersion: 1.0.0
+    SourceCodeUrl: https://github.com/Dozuki/CloudPrem
 
 Parameters:
 
@@ -61,7 +61,7 @@ Resources:
       Provider: !Ref SourceActionProvider
       Version: !Ref SourceActionVersion
       Settings:
-        EntityUrlTemplate: https://github.com/nclouds/doz-cloudprem-pipeline
+        EntityUrlTemplate: https://github.com/Dozuki/CloudPrem
         ExecutionUrlTemplate: !Sub https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logsV2:log-groups/log-group/$252Faws$252Flambda$252F${GitPullFunction}
       ConfigurationProperties:
         - Name: GitUrl

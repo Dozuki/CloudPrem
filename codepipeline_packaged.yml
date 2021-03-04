@@ -15,13 +15,13 @@ Metadata:
       pipelines
     Author: Ronaldo
     SpdxLicenseId: Apache-2.0
-    ReadmeUrl: s3://nclouds-cloudprem-assets/6f8a7c568b75065aa685ff1d5efb724a
-    LicenseUrl: s3://nclouds-cloudprem-assets/1cda22914b90f5f62358a5fb3d70091d
+    ReadmeUrl: s3://dozuki-lambda/97ae4cc3e9e07cbf7e578ba5b86baa88
+    LicenseUrl: s3://dozuki-lambda/1cda22914b90f5f62358a5fb3d70091d
     Labels:
     - codepipeline
-    HomePageUrl: https://github.com/nclouds/doz-cloudprem-pipeline
-    SemanticVersion: 1.0.4
-    SourceCodeUrl: https://github.com/nclouds/doz-cloudprem-pipeline
+    HomePageUrl: https://github.com/Dozuki/CloudPrem
+    SemanticVersion: 1.0.0
+    SourceCodeUrl: https://github.com/Dozuki/CloudPrem
 Parameters:
   SourceActionVersion:
     Type: String
@@ -53,7 +53,7 @@ Resources:
       Version:
         Ref: SourceActionVersion
       Settings:
-        EntityUrlTemplate: https://github.com/nclouds/doz-cloudprem-pipeline
+        EntityUrlTemplate: https://github.com/Dozuki/CloudPrem
         ExecutionUrlTemplate:
           Fn::Sub: https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logsV2:log-groups/log-group/$252Faws$252Flambda$252F${GitPullFunction}
       ConfigurationProperties:
@@ -117,7 +117,7 @@ Resources:
         Fn::Sub: create-ssh-key
       Description: Creates SSH keys encrypted with KMS and stores them on S3
       Handler: lambda_function.lambda_handler
-      CodeUri: s3://nclouds-cloudprem-assets/8c88a1cf85e00280422b91015deaf65b
+      CodeUri: s3://dozuki-lambda/8c88a1cf85e00280422b91015deaf65b
       Policies:
       - KMSEncryptPolicy:
           KeyId:
@@ -147,7 +147,7 @@ Resources:
       Description: Custom source action for CodePipeline. Pulls the source code from
         any Git repository.
       Handler: lambda_function.lambda_handler
-      CodeUri: s3://nclouds-cloudprem-assets/9d987e97d6b80aaa1571930eea326043
+      CodeUri: s3://dozuki-lambda/9d987e97d6b80aaa1571930eea326043
       Policies:
       - KMSDecryptPolicy:
           KeyId:
@@ -223,3 +223,4 @@ Outputs:
     Export:
       Name:
         Fn::Sub: cloudprem-source-action-provider
+
