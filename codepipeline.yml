@@ -89,7 +89,7 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub cloudprem-ssh-keys-${AWS::Region}-${AWS::AccountId}
+      BucketName: !Sub dozuki-ssh-keys-${AWS::Region}-${AWS::AccountId}
 
   KMSKey:
     Type: AWS::KMS::Key
@@ -182,7 +182,7 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub cloudprem-codepipeline-${AWS::Region}-${AWS::AccountId}
+      BucketName: !Sub dozuki-codepipeline-${AWS::Region}-${AWS::AccountId}
       VersioningConfiguration:
         Status: Enabled
 

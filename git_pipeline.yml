@@ -104,8 +104,8 @@ Resources:
     Properties:
       RoleName: !If
         - IdentifierSet
-        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-deployment
-        - !Sub cloudprem-${Environment}-${AWS::Region}-deployment
+        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-deployment
+        - !Sub dozuki-${Environment}-${AWS::Region}-deployment
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -117,8 +117,8 @@ Resources:
       Policies:
       - PolicyName: !If
         - IdentifierSet
-        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-deployment
-        - !Sub cloudprem-${Environment}-${AWS::Region}-deployment
+        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-deployment
+        - !Sub dozuki-${Environment}-${AWS::Region}-deployment
         PolicyDocument:
           Statement: # TODO narrow permissions to least privilege for Cloudprem deployment
           - Effect: Allow
@@ -131,8 +131,8 @@ Resources:
     Properties:
       RoleName: !If
         - IdentifierSet
-        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-codebuild
-        - !Sub cloudprem-${Environment}-${AWS::Region}-codebuild
+        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-codebuild
+        - !Sub dozuki-${Environment}-${AWS::Region}-codebuild
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -143,8 +143,8 @@ Resources:
       Policies:
       - PolicyName: !If
         - IdentifierSet
-        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-codebuild
-        - !Sub cloudprem-${Environment}-${AWS::Region}-codebuild
+        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-codebuild
+        - !Sub dozuki-${Environment}-${AWS::Region}-codebuild
         PolicyDocument:
           Statement:
           - Effect: Allow
@@ -168,8 +168,8 @@ Resources:
     Properties:
       RoleName: !If
         - IdentifierSet
-        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-codepipeline
-        - !Sub cloudprem-${Environment}-${AWS::Region}-codepipeline
+        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-codepipeline
+        - !Sub dozuki-${Environment}-${AWS::Region}-codepipeline
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -181,8 +181,8 @@ Resources:
       Policies:
       - PolicyName: !If
         - IdentifierSet
-        - !Sub ${Identifier}-cloudprem-${Environment}-${AWS::Region}-codepipeline
-        - !Sub cloudprem-${Environment}-${AWS::Region}-codepipeline
+        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-codepipeline
+        - !Sub dozuki-${Environment}-${AWS::Region}-codepipeline
         PolicyDocument:
           Version: 2012-10-17
           Statement:
@@ -216,8 +216,8 @@ Resources:
     Properties:
       Name: !If
         - IdentifierSet
-        - !Sub ${Identifier}-cloudprem-${Environment}-terraform-plan
-        - !Sub cloudprem-${Environment}-terraform-plan
+        - !Sub ${Identifier}-dozuki-${Environment}-terraform-plan
+        - !Sub dozuki-${Environment}-terraform-plan
       Description: !Sub Build project for cloudprem-${Environment} Terraform plan
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Artifacts:
@@ -280,8 +280,8 @@ Resources:
       - Key: Name
         Value: !If
         - IdentifierSet
-        - !Sub ${Identifier}-cloudprem-${Environment}-terraform-plan
-        - !Sub cloudprem-${Environment}-terraform-plan
+        - !Sub ${Identifier}-dozuki-${Environment}-terraform-plan
+        - !Sub dozuki-${Environment}-terraform-plan
       - Key: Owner
         Value: !Ref OwnerName
       - Key: Environment
@@ -292,8 +292,8 @@ Resources:
     Properties:
       Name: !If
         - IdentifierSet
-        - !Sub ${Identifier}-cloudprem-${Environment}-terraform-apply
-        - !Sub cloudprem-${Environment}-terraform-apply
+        - !Sub ${Identifier}-dozuki-${Environment}-terraform-apply
+        - !Sub dozuki-${Environment}-terraform-apply
       Description: !Sub Build project for cloudprem-${Environment} Terraform apply
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Artifacts:
@@ -342,8 +342,8 @@ Resources:
       - Key: Name
         Value: !If
         - IdentifierSet
-        - !Sub ${Identifier}-cloudprem-${Environment}-terraform-apply
-        - !Sub cloudprem-${Environment}-terraform-apply
+        - !Sub ${Identifier}-dozuki-${Environment}-terraform-apply
+        - !Sub dozuki-${Environment}-terraform-apply
       - Key: Owner
         Value: !Ref OwnerName
       - Key: Environment
@@ -356,8 +356,8 @@ Resources:
     Properties:
       Name: !If
         - IdentifierSet
-        - !Sub ${Identifier}-cloudprem-${Environment}
-        - !Sub cloudprem-${Environment}
+        - !Sub ${Identifier}-dozuki-${Environment}
+        - !Sub dozuki-${Environment}
       RoleArn: !GetAtt CodePipelineServiceRole.Arn
       Stages:
       - Name: Checkout
