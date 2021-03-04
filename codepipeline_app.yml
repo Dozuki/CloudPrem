@@ -35,7 +35,7 @@ Mappings:
 
   PartitionMap: 
     aws:
-      ServerlessRepoArn: arn:aws:serverlessrepo:us-west-2:010601635461:applications/dozuki-codepipeline
+      ServerlessRepoArn: arn:aws:serverlessrepo:us-east-1:010601635461:applications/dozuki-codepipeline
     aws-us-gov:
       ServerlessRepoArn: arn:aws-us-gov:serverlessrepo:us-gov-west-1:446787640263:applications/dozuki-codepipeline
 
