@@ -15,12 +15,12 @@ Metadata:
       pipelines
     Author: Ronaldo
     SpdxLicenseId: Apache-2.0
-    ReadmeUrl: s3://dozuki-lambda/97ae4cc3e9e07cbf7e578ba5b86baa88
+    ReadmeUrl: s3://dozuki-lambda/a3c3d9a520b51e457a53739c84389024
     LicenseUrl: s3://dozuki-lambda/1cda22914b90f5f62358a5fb3d70091d
     Labels:
     - codepipeline
     HomePageUrl: https://github.com/Dozuki/CloudPrem
-    SemanticVersion: 1.0.0
+    SemanticVersion: 1.0.2
     SourceCodeUrl: https://github.com/Dozuki/CloudPrem
 Parameters:
   SourceActionVersion:
@@ -82,7 +82,7 @@ Resources:
     DeletionPolicy: Retain
     Properties:
       BucketName:
-        Fn::Sub: cloudprem-ssh-keys-${AWS::Region}-${AWS::AccountId}
+        Fn::Sub: dozuki-ssh-keys-${AWS::Region}-${AWS::AccountId}
   KMSKey:
     Type: AWS::KMS::Key
     Properties:
@@ -147,7 +147,7 @@ Resources:
       Description: Custom source action for CodePipeline. Pulls the source code from
         any Git repository.
       Handler: lambda_function.lambda_handler
-      CodeUri: s3://dozuki-lambda/9d987e97d6b80aaa1571930eea326043
+      CodeUri: s3://dozuki-lambda/20a08566f159e75cdd7670f92865b53e
       Policies:
       - KMSDecryptPolicy:
           KeyId:
@@ -186,7 +186,7 @@ Resources:
     DeletionPolicy: Retain
     Properties:
       BucketName:
-        Fn::Sub: cloudprem-codepipeline-${AWS::Region}-${AWS::AccountId}
+        Fn::Sub: dozuki-codepipeline-${AWS::Region}-${AWS::AccountId}
       VersioningConfiguration:
         Status: Enabled
 Outputs:

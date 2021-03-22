@@ -28,7 +28,7 @@ Parameters:
 
   RepositoryBranch:
     Type: String
-    Default: main
+    Default: master
     Description: Branch that contains the Cloudprem parameters
 
   RepositoryPath:

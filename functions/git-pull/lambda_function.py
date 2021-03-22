@@ -25,7 +25,7 @@ import logging
 exclude_git=True
 
 ### If true the function will delete all files at the end of each invocation, useful if you run into storage space constraints, but will slow down invocations as each invoke will need to checkout the entire repo
-cleanup=False
+cleanup=True
 
 key='enc_key'
 
@@ -46,6 +46,7 @@ actionTypeId = {
     'version': '1'
 }
 
+
 def write_key(filename,contents):
     logger.info('Writing keys to /tmp/...')
     mode = stat.S_IRUSR | stat.S_IWUSR
@@ -59,6 +60,7 @@ def write_key(filename,contents):
     handle.write(contents+'\n')
     handle.close()
 
+
 def get_keys(keybucket,update=False):
     if not os.path.isfile('/tmp/id_rsa') or not os.path.isfile('/tmp/id_rsa.pub') or update:
         logger.info('Keys not found on Lambda container, fetching from S3...')
@@ -71,9 +73,11 @@ def get_keys(keybucket,update=False):
 
     return Keypair('git','/tmp/id_rsa.pub','/tmp/id_rsa','')
 
+
 def init_remote(repo, name, url):
     remote = repo.remotes.create(name, url, '+refs/*:refs/*')
     return remote
+
 
 def create_repo(repo_path, remote_url, creds):
     if os.path.exists(repo_path):
@@ -82,6 +86,7 @@ def create_repo(repo_path, remote_url, creds):
 
     repo = clone_repository(remote_url, repo_path, callbacks=creds )
     return repo
+
 
 def pull_repo(repo, remote_url, branch, creds):
     remote_exists = False
@@ -103,6 +108,7 @@ def pull_repo(repo, remote_url, branch, creds):
     repo.head.set_target(remote_master_id)
     return repo
 
+
 def zip_repo(repo_path,repo_name):
     logger.info('Creating zipfile...')
     zf = ZipFile('/tmp/'+repo_name.replace('/','_')+'.zip','w')
@@ -121,11 +127,13 @@ def zip_repo(repo_path,repo_name):
     zf.close()
     return '/tmp/'+repo_name.replace('/','_')+'.zip'
 
+
 def push_s3(filename,repo_name,outputbucket,s3key):
     logger.info('pushing zip to s3://%s/%s' % (outputbucket,s3key))
     data=open(filename,'rb')
     s3.put_object(Bucket=outputbucket,Body=data,Key=s3key)
     logger.info('Completed S3 upload...')
+
 
 def pull(job):
     keybucket=os.environ['KEYS_BUCKET']
@@ -165,11 +173,12 @@ def pull(job):
     if cleanup:
         logger.info('Cleanup Lambda container...')
         shutil.rmtree(repo_path)
-        shutil.rm(zipfile)
-        shutil.rm('/tmp/id_rsa')
-        shutil.rm('/tmp/id_rsa.pub')
+        os.remove(zipfile)
+        os.remove('/tmp/id_rsa')
+        os.remove('/tmp/id_rsa.pub')
     
     return currentRevision
+
 
 def lambda_handler(event,context):
     actionTypeId['version'] = os.environ['CUSTOM_ACTION_VERSION']
