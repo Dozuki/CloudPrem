@@ -26,6 +26,13 @@ Parameters:
     Default: https://github.com/Dozuki/CloudPrem-Config.git
     Description: SSH/HTTP URL of the git repository containing the Cloudprem parameters
 
+  RepositorySecret:
+    Type: String
+    NoEcho: true
+    Description: |
+      If using Webhooks enter your webhook secret here, this will allow for auto-updating of your instances whenever
+      code is pushed to your config repository. If left blank webhooks will be disabled.
+
   RepositoryBranch:
     Type: String
     Default: master
@@ -76,6 +83,8 @@ Conditions:
 
   DestroyResources: !Equals [ !Ref PipelineAction, 'Destroy' ]
 
+  UseWebhooks: !Not [ !Equals [ !Ref RepositorySecret, "" ] ]
+
 Mappings:
 
   PartitionMap: 
@@ -96,6 +105,19 @@ Resources:
       Description: The contents of the Dozuki license file provided to you.
       Type: String
       Value: !Ref DozukiLicense
+
+  RepositoryWebhookSecret:
+    Type: AWS::SSM::Parameter
+    Condition: UseWebhooks
+    Properties:
+      Name: !If
+        - IdentifierSet
+        - !Sub /${Identifier}/cloudprem/${Environment}/webhooksecret
+        - !Sub /cloudprem/${Environment}/webhooksecret
+      Description: The repository secret for webhook support.
+      Type: String
+      Value: !Ref RepositorySecret
+
 
 #   # ############### Roles ##############
 
@@ -431,6 +453,22 @@ Resources:
     - TfPlanCodeBuildProject
     - TfApplyCodeBuildProject
 
+  Webhook:
+    Type: 'AWS::CodePipeline::Webhook'
+    Condition: UseWebhooks
+    Properties:
+      AuthenticationConfiguration:
+        SecretToken: !Ref RepositorySecret
+      Filters:
+        - JsonPath: "$.ref"
+          MatchEquals: refs/heads/{Branch}
+      Authentication: GITHUB_HMAC
+      TargetPipeline: !Ref ProjectPipeline
+      TargetAction: Checkout
+      Name: UpdateWebhook
+      TargetPipelineVersion: 1
+      RegisterWithThirdParty: 'false'
+
 Outputs:
 
   LicenseParameterName:
@@ -452,4 +490,9 @@ Outputs:
   PipelineAction:
     Description: Terraform action that this pipeline executes
     Value: !Ref PipelineAction
+
+  WebhookURL:
+    Description: Webhook URL to enter into webhook configuration on your github config repository.
+    Value: !GetAtt Webhook.Url
+    Condition: UseWebhooks
   
