@@ -6,12 +6,49 @@ Description: >
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
-    - Label:
-        default: Required Configuration
-      Parameters:
-      - DozukiLicense
-      - OwnerName
-      - Environment
+      - Label:
+          default: Environment Configuration
+        Parameters:
+          - DozukiLicense
+          - Environment
+      - Label:
+          default: Settings Repository Configuration
+        Parameters:
+          - RepositoryUrl
+          - RepositoryBranch
+          - RepositoryPath
+          - RepositorySecret
+      - Label:
+          default: Optional Resource Identification Configuration
+        Parameters:
+          - Identifier
+          - OwnerName
+      - Label:
+          default: Terraform Options
+        Parameters:
+          - OverrideRepositoryParameters
+          - PipelineAction
+    ParameterLabels:
+      DozukiLicense:
+        default: "Please enter your Dozuki license in the box below."
+      Environment:
+        default: "What environment tag should we use for this installation?"
+      RepositoryUrl:
+        default: "What is the URL to the terraform settings repository?"
+      RepositoryBranch:
+        default: "Which branch in the above-mentioned repository should we pull settings from?"
+      RepositoryPath:
+        default: "Which path in the above-mentioned repository should we pull settings from?"
+      RepositorySecret:
+        default: "If using webhooks, enter the authentication secret here."
+      Identifier:
+        default: "What prefix should we use for resource names if any?"
+      OwnerName:
+        default: "What tag should we add to all resources to identify the stack owner if any?"
+      OverrideRepositoryParameters:
+        default: "Should we override the specified configuration settings in the repository with values set here?"
+      PipelineAction:
+        default: "Which action should we execute?"
 
 Parameters:
 
@@ -46,13 +83,14 @@ Parameters:
   OverrideRepositoryParameters:
     Type: String
     Default: true
-    Description: Override 'identifier', 'region' and 'environment' parameters from the repository with the current template parameters
+    AllowedValues: [ true, false ]
+    Description: Override 'identifier', 'region' and 'environment' parameters from the repository with the template parameters set here.
 
   PipelineAction:
     Type: String
     Default: Apply
     AllowedValues: [ Apply, Destroy ]
-    Description: Action that the pipeline will execute. Apply will create or update the resources and destroy will delete the Terraform stack
+    Description: Apply will create or update the resources and destroy will delete the Terraform stack
 
   Identifier:
     Type: String
@@ -65,6 +103,7 @@ Parameters:
   OwnerName:
     Type: String
     Description: An arbitrary tag name for the owner of the environment pipeline
+    Default: ""
 
   Environment:
     Type: String
@@ -465,7 +504,6 @@ Resources:
       Authentication: GITHUB_HMAC
       TargetPipeline: !Ref ProjectPipeline
       TargetAction: Checkout
-      Name: UpdateWebhook
       TargetPipelineVersion: 1
       RegisterWithThirdParty: 'false'
 
