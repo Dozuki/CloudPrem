@@ -291,10 +291,10 @@ Resources:
             phases:
               install:
                 runtime-versions:
-                  golang: 1.14
+                  golang: 1.15
                 commands:
-                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/0.14.4/terraform_0.14.4_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
-                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.26.4/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
+                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/0.14.10/terraform_0.14.10_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
+                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.29.2/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
                   - aws_credentials=$(aws sts assume-role --role-arn ${DeploymentRole.Arn} --role-session-name "Terraform")
                   - export AWS_ACCESS_KEY_ID=$(echo $aws_credentials|jq '.Credentials.AccessKeyId'|tr -d '"')
                   - export AWS_SECRET_ACCESS_KEY=$(echo $aws_credentials|jq '.Credentials.SecretAccessKey'|tr -d '"')
@@ -326,7 +326,7 @@ Resources:
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
-        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        Image: aws/codebuild/standard:5.0
         PrivilegedMode: false
         EnvironmentVariables:
         - Name: Environment
@@ -367,10 +367,10 @@ Resources:
             phases:
               install:
                 runtime-versions:
-                  golang: 1.14
+                  golang: 1.15
                 commands:
-                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/0.14.4/terraform_0.14.4_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
-                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.26.4/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
+                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/0.14.10/terraform_0.14.10_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
+                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.29.2/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
                   - aws_credentials=$(aws sts assume-role --role-arn ${DeploymentRole.Arn} --role-session-name "Terraform")
                   - export AWS_ACCESS_KEY_ID=$(echo $aws_credentials|jq '.Credentials.AccessKeyId'|tr -d '"')
                   - export AWS_SECRET_ACCESS_KEY=$(echo $aws_credentials|jq '.Credentials.SecretAccessKey'|tr -d '"')
@@ -390,7 +390,7 @@ Resources:
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
-        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        Image: aws/codebuild/standard:5.0
         PrivilegedMode: false
         EnvironmentVariables:
         - Name: Environment
