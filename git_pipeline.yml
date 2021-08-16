@@ -1,7 +1,7 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
 Description: >
-  Cloudprem deployment pipeline
+  Environmental Cloudprem deployment pipeline
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -533,4 +533,12 @@ Outputs:
     Description: Webhook URL to enter into webhook configuration on your github config repository.
     Value: !GetAtt Webhook.Url
     Condition: UseWebhooks
+
+  PathLock:
+    Description: ->
+      Output to lock environments from colliding, if this triggers a rollback it's because you tried to use the same
+      environmental information twice in the same Region. You must create a new folder for each environment.
+    Value: 'true'
+    Export:
+      Name: !Join [ "", [ !Ref RepositoryPath, '' ] ]
   
