@@ -1,10 +1,7 @@
----
 AWSTemplateFormatVersion: 2010-09-09
-Transform:
-- AWS::Serverless-2016-10-31
+Transform: AWS::Serverless-2016-10-31
 
-Description: >-
-  Regional CodePipeline resources required for Cloudprem pipelines
+Description: Regional CodePipeline resources required for Cloudprem pipelines
 
 Metadata:
 
@@ -46,7 +43,7 @@ Resources:
     Properties:
       Location:
         ApplicationId: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ServerlessRepoArn]
-        SemanticVersion: 1.0.2
+        SemanticVersion: 1.1.3
       Parameters:
         SourceActionVersion: !Ref SourceActionVersion
         SourceActionProvider: !Ref SourceActionProvider

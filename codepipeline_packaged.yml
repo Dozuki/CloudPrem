@@ -1,7 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
-Transform:
-- AWS::Serverless-2016-10-31
-Description: CodePipeline resources required for Cloudprem pipelines
+Transform: AWS::Serverless-2016-10-31
+Description: Lambda CodePipeline resources required for Cloudprem pipelines
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -15,12 +14,12 @@ Metadata:
       pipelines
     Author: Ronaldo
     SpdxLicenseId: Apache-2.0
-    ReadmeUrl: s3://dozuki-lambda/a3c3d9a520b51e457a53739c84389024
+    ReadmeUrl: s3://dozuki-lambda/847fdaff8609ab951b90077d4007b160
     LicenseUrl: s3://dozuki-lambda/1cda22914b90f5f62358a5fb3d70091d
     Labels:
     - codepipeline
     HomePageUrl: https://github.com/Dozuki/CloudPrem
-    SemanticVersion: 1.0.2
+    SemanticVersion: 1.1.3
     SourceCodeUrl: https://github.com/Dozuki/CloudPrem
 Parameters:
   SourceActionVersion:
@@ -147,7 +146,7 @@ Resources:
       Description: Custom source action for CodePipeline. Pulls the source code from
         any Git repository.
       Handler: lambda_function.lambda_handler
-      CodeUri: s3://dozuki-lambda/20a08566f159e75cdd7670f92865b53e
+      CodeUri: s3://dozuki-lambda/a40fda72eb6249b9cf6a076a4f1b84e9
       Policies:
       - KMSDecryptPolicy:
           KeyId:
@@ -181,6 +180,34 @@ Resources:
             Schedule: rate(1 minute)
             Description: Fire CodePipeline custom action polling
             Enabled: true
+  AutoApproveTopic:
+    Type: AWS::SNS::Topic
+  AutoApproveFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: auto-approve
+      Description: Auto approve manual approval steps depending on configuration and
+        changes made.
+      Handler: lambda_function.lambda_handler
+      CodeUri: s3://dozuki-lambda/62d0e4af7ebdcf1438be359e67251b5e
+      Policies:
+      - SNSCrudPolicy:
+          TopicName:
+            Fn::GetAtt:
+            - AutoApproveTopic
+            - TopicName
+      - Statement:
+          Effect: Allow
+          Action:
+          - codepipeline:*
+          Resource: '*'
+      Events:
+        SNSEvent:
+          Type: SNS
+          Properties:
+            Topic:
+              Ref: AutoApproveTopic
   S3ArtifactsBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
@@ -223,4 +250,10 @@ Outputs:
     Export:
       Name:
         Fn::Sub: cloudprem-source-action-provider
+  AutoApproveSNSTopic:
+    Value:
+      Ref: AutoApproveTopic
+    Export:
+      Name:
+        Fn::Sub: cp-auto-approve-topic
 
