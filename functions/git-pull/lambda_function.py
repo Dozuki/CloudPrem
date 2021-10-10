@@ -79,12 +79,12 @@ def init_remote(repo, name, url):
     return remote
 
 
-def create_repo(repo_path, remote_url, creds):
+def create_repo(repo_path, remote_url, creds, branch):
     if os.path.exists(repo_path):
             logger.info('Cleaning up repo path...')
             shutil.rmtree(repo_path)
 
-    repo = clone_repository(remote_url, repo_path, callbacks=creds )
+    repo = clone_repository(remote_url, repo_path, callbacks=creds, checkout_branch=branch)
     return repo
 
 
@@ -152,7 +152,7 @@ def pull(job):
         logger.info('found existing repo, using that...')
     except:
         logger.info('creating new repo for %s in %s' % (remote_url, repo_path))
-        repo = create_repo(repo_path, remote_url, creds)
+        repo = create_repo(repo_path, remote_url, creds, branch)
 
     pull_repo(repo,remote_url,branch,creds)
     zipfile = zip_repo(repo_path, repo_name)
