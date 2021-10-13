@@ -1,10 +1,7 @@
----
 AWSTemplateFormatVersion: 2010-09-09
-Transform:
-- AWS::Serverless-2016-10-31
+Transform: AWS::Serverless-2016-10-31
 
-Description: >-
-  Lambda CodePipeline resources required for Cloudprem pipelines
+Description: Lambda CodePipeline resources required for Cloudprem pipelines
 
 Metadata:
 
@@ -24,7 +21,7 @@ Metadata:
     LicenseUrl: LICENSE
     Labels: ['codepipeline']
     HomePageUrl: https://github.com/Dozuki/CloudPrem
-    SemanticVersion: 1.0.2
+    SemanticVersion: 1.1.3
     SourceCodeUrl: https://github.com/Dozuki/CloudPrem
 
 Parameters:
@@ -123,8 +120,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub create-ssh-key
-      Description: >-
-        Creates SSH keys encrypted with KMS and stores them on S3
+      Description: Creates SSH keys encrypted with KMS and stores them on S3
       Handler: lambda_function.lambda_handler
       CodeUri: functions/create-ssh-key
       Policies:
@@ -146,8 +142,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub git-pull
-      Description: >-
-        Custom source action for CodePipeline. Pulls the source code from any Git repository.
+      Description: Custom source action for CodePipeline. Pulls the source code from any Git repository.
       Handler: lambda_function.lambda_handler
       CodeUri: functions/git-pull
       Policies:
@@ -177,6 +172,31 @@ Resources:
             Schedule: rate(1 minute)
             Description: Fire CodePipeline custom action polling
             Enabled: true
+
+  AutoApproveTopic:
+      Type: AWS::SNS::Topic
+
+  AutoApproveFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        FunctionName: !Sub auto-approve
+        Description: Auto approve manual approval steps depending on configuration and changes made.
+        Handler: lambda_function.lambda_handler
+        CodeUri: functions/auto-approve
+        Policies:
+        - SNSCrudPolicy:
+            TopicName: !GetAtt AutoApproveTopic.TopicName
+        - Statement:
+            Effect: Allow
+            Action:
+            - codepipeline:*
+            Resource: '*'
+        Events:
+          SNSEvent:
+              Type: SNS
+              Properties:
+                Topic: !Ref AutoApproveTopic
+
 
   S3ArtifactsBucket:
     Type: AWS::S3::Bucket
@@ -213,3 +233,8 @@ Outputs:
     Value: !Ref SourceActionProvider
     Export:
       Name: !Sub cloudprem-source-action-provider
+
+  AutoApproveSNSTopic:
+    Value: !Ref AutoApproveTopic
+    Export:
+      Name: !Sub cp-auto-approve-topic
