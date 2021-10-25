@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Environmental Cloudprem deployment pipeline
+Description: Environmental Dozuki deployment pipeline
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -59,7 +59,7 @@ Parameters:
   RepositoryUrl:
     Type: String
     Default: https://github.com/Dozuki/CloudPrem-Config.git
-    Description: SSH/HTTP URL of the git repository containing the Cloudprem parameters
+    Description: SSH/HTTP URL of the git repository containing the Dozuki parameters
 
   RepositorySecret:
     Type: String
@@ -71,12 +71,12 @@ Parameters:
   RepositoryBranch:
     Type: String
     Default: master
-    Description: Branch that contains the Cloudprem parameters
+    Description: Branch that contains the Dozuki parameters
 
   RepositoryPath:
     Type: String
     Default: development
-    Description: Path inside the git repository that contains the Cloudprem parameters for this environment. Don't use the same path for multiple pipelines
+    Description: Path inside the git repository that contains the Dozuki parameters for this environment. Don't use the same path for multiple pipelines
 
   PipelineAction:
     Type: String
@@ -140,8 +140,8 @@ Resources:
     Properties:
       Name: !If
         - IdentifierSet
-        - !Sub /${Identifier}/cloudprem/${Environment}/license
-        - !Sub /cloudprem/${Environment}/license
+        - !Sub /${Identifier}/dozuki/${Environment}/license
+        - !Sub /dozuki/${Environment}/license
       Description: The contents of the Dozuki license file provided to you.
       Type: String
       Value: !Ref DozukiLicense
@@ -152,8 +152,8 @@ Resources:
     Properties:
       Name: !If
         - IdentifierSet
-        - !Sub /${Identifier}/cloudprem/${Environment}/webhooksecret
-        - !Sub /cloudprem/${Environment}/webhooksecret
+        - !Sub /${Identifier}/dozuki/${Environment}/webhooksecret
+        - !Sub /dozuki/${Environment}/webhooksecret
       Description: The repository secret for webhook support.
       Type: String
       Value: !Ref RepositorySecret
@@ -182,7 +182,7 @@ Resources:
         - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-deployment
         - !Sub dozuki-${Environment}-${AWS::Region}-deployment
         PolicyDocument:
-          Statement: # TODO narrow permissions to least privilege for Cloudprem deployment
+          Statement: # TODO narrow permissions to least privilege for Dozuki deployment
           - Effect: Allow
             Action: 
             - '*'
@@ -281,7 +281,7 @@ Resources:
         - IdentifierSet
         - !Sub ${Identifier}-dozuki-${Environment}-terraform-plan
         - !Sub dozuki-${Environment}-terraform-plan
-      Description: !Sub Build project for cloudprem-${Environment} Terraform plan
+      Description: !Sub Build project for dozuki-${Environment} Terraform plan
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Artifacts:
         Type: CODEPIPELINE
@@ -353,7 +353,7 @@ Resources:
         - IdentifierSet
         - !Sub ${Identifier}-dozuki-${Environment}-terraform-apply
         - !Sub dozuki-${Environment}-terraform-apply
-      Description: !Sub Build project for cloudprem-${Environment} Terraform apply
+      Description: !Sub Build project for dozuki-${Environment} Terraform apply
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Artifacts:
         Type: CODEPIPELINE
