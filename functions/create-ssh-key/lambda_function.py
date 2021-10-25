@@ -45,7 +45,7 @@ def lambda_handler(event,context):
             s3.upload_file('/tmp/pub_key',event["ResourceProperties"]["KeyBucket"],'pub_key')
         else:
             pub_key = event['PhysicalResourceId']
-        cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, pub_key)
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, pub_key.decode())
     except:
         traceback.print_exc()
         cfnresponse.send(event, context, cfnresponse.FAILED, {}, '')
