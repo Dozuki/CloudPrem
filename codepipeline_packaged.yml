@@ -19,7 +19,7 @@ Metadata:
     Labels:
     - codepipeline
     HomePageUrl: https://github.com/Dozuki/CloudPrem
-    SemanticVersion: 1.1.3
+    SemanticVersion: 1.2.0
     SourceCodeUrl: https://github.com/Dozuki/CloudPrem
 Parameters:
   SourceActionVersion:
@@ -36,7 +36,7 @@ Parameters:
     Description: An arbitrary tag name for the owner of the Stack
 Globals:
   Function:
-    Runtime: python2.7
+    Runtime: python3.9
     Timeout: 300
     MemorySize: 128
     Tags:
@@ -78,7 +78,8 @@ Resources:
         MinimumCount: 1
   KeysBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       BucketName:
         Fn::Sub: dozuki-ssh-keys-${AWS::Region}-${AWS::AccountId}
@@ -116,7 +117,7 @@ Resources:
         Fn::Sub: create-ssh-key
       Description: Creates SSH keys encrypted with KMS and stores them on S3
       Handler: lambda_function.lambda_handler
-      CodeUri: s3://dozuki-lambda/8c88a1cf85e00280422b91015deaf65b
+      CodeUri: s3://dozuki-lambda/ae4908888e22e55e425004a67d86f170
       Policies:
       - KMSEncryptPolicy:
           KeyId:
@@ -210,7 +211,8 @@ Resources:
               Ref: AutoApproveTopic
   S3ArtifactsBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       BucketName:
         Fn::Sub: dozuki-codepipeline-${AWS::Region}-${AWS::AccountId}

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Environmental Cloudprem deployment pipeline
+Description: Environmental Dozuki deployment pipeline
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -12,6 +12,7 @@ Metadata:
       - Label:
           default: Settings Repository Configuration
         Parameters:
+          - UseCodeCommit
           - RepositoryUrl
           - RepositoryBranch
           - RepositoryPath
@@ -31,6 +32,8 @@ Metadata:
         default: "Please enter your Dozuki license in the box below."
       Environment:
         default: "What environment tag should we use for this installation?"
+      UseCodeCommit:
+        default: "Did you create a regional CodeCommit repository for the configuration for this stack?"
       RepositoryUrl:
         default: "What is the URL to the terraform settings repository?"
       RepositoryBranch:
@@ -56,10 +59,16 @@ Parameters:
     Description: The contents of the .rli license file provided by Dozuki
     NoEcho: true
 
+  UseCodeCommit:
+    Type: String
+    AllowedValues: [True, False]
+    Default: False
+    Description: If true, we will ignore RepositoryURL below and use the CodeCommit repository you created with your regional stack.
+
   RepositoryUrl:
     Type: String
     Default: https://github.com/Dozuki/CloudPrem-Config.git
-    Description: SSH/HTTP URL of the git repository containing the Cloudprem parameters
+    Description: SSH/HTTP URL of the git repository containing the Dozuki parameters
 
   RepositorySecret:
     Type: String
@@ -71,12 +80,12 @@ Parameters:
   RepositoryBranch:
     Type: String
     Default: master
-    Description: Branch that contains the Cloudprem parameters
+    Description: Branch that contains the Dozuki parameters
 
   RepositoryPath:
     Type: String
     Default: development
-    Description: Path inside the git repository that contains the Cloudprem parameters for this environment. Don't use the same path for multiple pipelines
+    Description: Path inside the git repository that contains the Dozuki parameters for this environment. Don't use the same path for multiple pipelines
 
   PipelineAction:
     Type: String
@@ -123,7 +132,9 @@ Conditions:
 
   UseWebhooks: !Not [ !Equals [ !Ref RepositorySecret, "" ] ]
 
-  UseManualApproval: !Equals [ !Ref ManualApprovalRequired, "true" ]
+  UseManualApproval: !Equals [ !Ref ManualApprovalRequired, 'true' ]
+
+  CodeCommit: !Equals [ !Ref UseCodeCommit, 'true' ]
 
 Mappings:
 
@@ -140,8 +151,8 @@ Resources:
     Properties:
       Name: !If
         - IdentifierSet
-        - !Sub /${Identifier}/cloudprem/${Environment}/license
-        - !Sub /cloudprem/${Environment}/license
+        - !Sub /${Identifier}/dozuki/${Environment}/license
+        - !Sub /dozuki/${Environment}/license
       Description: The contents of the Dozuki license file provided to you.
       Type: String
       Value: !Ref DozukiLicense
@@ -152,8 +163,8 @@ Resources:
     Properties:
       Name: !If
         - IdentifierSet
-        - !Sub /${Identifier}/cloudprem/${Environment}/webhooksecret
-        - !Sub /cloudprem/${Environment}/webhooksecret
+        - !Sub /${Identifier}/dozuki/${Environment}/webhooksecret
+        - !Sub /dozuki/${Environment}/webhooksecret
       Description: The repository secret for webhook support.
       Type: String
       Value: !Ref RepositorySecret
@@ -182,7 +193,7 @@ Resources:
         - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-deployment
         - !Sub dozuki-${Environment}-${AWS::Region}-deployment
         PolicyDocument:
-          Statement: # TODO narrow permissions to least privilege for Cloudprem deployment
+          Statement: # TODO narrow permissions to least privilege for Dozuki deployment
           - Effect: Allow
             Action: 
             - '*'
@@ -281,7 +292,7 @@ Resources:
         - IdentifierSet
         - !Sub ${Identifier}-dozuki-${Environment}-terraform-plan
         - !Sub dozuki-${Environment}-terraform-plan
-      Description: !Sub Build project for cloudprem-${Environment} Terraform plan
+      Description: !Sub Build project for dozuki-${Environment} Terraform plan
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Artifacts:
         Type: CODEPIPELINE
@@ -353,7 +364,7 @@ Resources:
         - IdentifierSet
         - !Sub ${Identifier}-dozuki-${Environment}-terraform-apply
         - !Sub dozuki-${Environment}-terraform-apply
-      Description: !Sub Build project for cloudprem-${Environment} Terraform apply
+      Description: !Sub Build project for dozuki-${Environment} Terraform apply
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Artifacts:
         Type: CODEPIPELINE
@@ -418,22 +429,41 @@ Resources:
         - !Sub dozuki-${Environment}-apply
       RoleArn: !GetAtt CodePipelineServiceRole.Arn
       Stages:
-      - Name: Checkout
-        Actions:
+      - !If
+        - CodeCommit
         - Name: Checkout
-          Namespace: SourceVariables
-          InputArtifacts: []
-          ActionTypeId:
-            Version: !ImportValue cloudprem-source-action-version
-            Category: Source
-            Owner: Custom
-            Provider: !ImportValue cloudprem-source-action-provider
-          Configuration:
-            GitUrl: !Ref RepositoryUrl
-            Branch: !Ref RepositoryBranch
-          OutputArtifacts:
-          - Name: SourceCodeArtifact
-          RunOrder: 1
+          Actions:
+          - Name: Checkout
+            Namespace: SourceVariables
+            InputArtifacts: []
+            ActionTypeId:
+              Version: '1'
+              Provider: CodeCommit
+              Category: Source
+              Owner: AWS
+            Configuration:
+              RepositoryName: !ImportValue code-commit-repo-name
+              BranchName: !Ref RepositoryBranch
+              PollForSourceChanges: 'false'
+            OutputArtifacts:
+            - Name: SourceCodeArtifact
+            RunOrder: 1
+        - Name: Checkout
+          Actions:
+          - Name: Checkout
+            Namespace: SourceVariables
+            InputArtifacts: []
+            ActionTypeId:
+              Version: !ImportValue cloudprem-source-action-version
+              Category: Source
+              Owner: Custom
+              Provider: !ImportValue cloudprem-source-action-provider
+            Configuration:
+              GitUrl: !Ref RepositoryUrl
+              Branch: !Ref RepositoryBranch
+            OutputArtifacts:
+            - Name: SourceCodeArtifact
+            RunOrder: 1
       - Name: Network
         Actions:
         - Name: Plan
@@ -651,22 +681,41 @@ Resources:
         - !Sub dozuki-${Environment}-destroy
       RoleArn: !GetAtt CodePipelineServiceRole.Arn
       Stages:
-      - Name: Checkout
-        Actions:
+      - !If
+        - CodeCommit
         - Name: Checkout
-          Namespace: SourceVariables
-          InputArtifacts: []
-          ActionTypeId:
-            Version: !ImportValue cloudprem-source-action-version
-            Category: Source
-            Owner: Custom
-            Provider: !ImportValue cloudprem-source-action-provider
-          Configuration:
-            GitUrl: !Ref RepositoryUrl
-            Branch: !Ref RepositoryBranch
-          OutputArtifacts:
-          - Name: SourceCodeArtifact
-          RunOrder: 1
+          Actions:
+          - Name: Checkout
+            Namespace: SourceVariables
+            InputArtifacts: []
+            ActionTypeId:
+              Version: '1'
+              Provider: CodeCommit
+              Category: Source
+              Owner: AWS
+            Configuration:
+              RepositoryName: !ImportValue code-commit-repo-name
+              BranchName: !Ref RepositoryBranch
+              PollForSourceChanges: 'false'
+            OutputArtifacts:
+            - Name: SourceCodeArtifact
+            RunOrder: 1
+        - Name: Checkout
+          Actions:
+          - Name: Checkout
+            Namespace: SourceVariables
+            InputArtifacts: []
+            ActionTypeId:
+              Version: !ImportValue cloudprem-source-action-version
+              Category: Source
+              Owner: Custom
+              Provider: !ImportValue cloudprem-source-action-provider
+            Configuration:
+              GitUrl: !Ref RepositoryUrl
+              Branch: !Ref RepositoryBranch
+            OutputArtifacts:
+            - Name: SourceCodeArtifact
+            RunOrder: 1
       - Name: App
         Actions:
         - Name: Plan

@@ -21,7 +21,7 @@ Metadata:
     LicenseUrl: LICENSE
     Labels: ['codepipeline']
     HomePageUrl: https://github.com/Dozuki/CloudPrem
-    SemanticVersion: 1.1.3
+    SemanticVersion: 1.2.0
     SourceCodeUrl: https://github.com/Dozuki/CloudPrem
 
 Parameters:
@@ -43,7 +43,7 @@ Parameters:
 Globals:
 
   Function:
-    Runtime: python2.7
+    Runtime: python3.9
     Timeout: 300
     MemorySize: 128
     Tags:
@@ -84,7 +84,8 @@ Resources:
 
   KeysBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       BucketName: !Sub dozuki-ssh-keys-${AWS::Region}-${AWS::AccountId}
 
@@ -200,7 +201,8 @@ Resources:
 
   S3ArtifactsBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       BucketName: !Sub dozuki-codepipeline-${AWS::Region}-${AWS::AccountId}
       VersioningConfiguration:
