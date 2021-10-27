@@ -12,6 +12,7 @@ Metadata:
       - Label:
           default: Settings Repository Configuration
         Parameters:
+          - UseCodeCommit
           - RepositoryUrl
           - RepositoryBranch
           - RepositoryPath
@@ -31,6 +32,8 @@ Metadata:
         default: "Please enter your Dozuki license in the box below."
       Environment:
         default: "What environment tag should we use for this installation?"
+      UseCodeCommit:
+        default: "Did you create a regional CodeCommit repository for the configuration for this stack?"
       RepositoryUrl:
         default: "What is the URL to the terraform settings repository?"
       RepositoryBranch:
@@ -55,6 +58,12 @@ Parameters:
     MinLength: 50
     Description: The contents of the .rli license file provided by Dozuki
     NoEcho: true
+
+  UseCodeCommit:
+    Type: String
+    AllowedValues: [True, False]
+    Default: False
+    Description: If true, we will ignore RepositoryURL below and use the CodeCommit repository you created with your regional stack.
 
   RepositoryUrl:
     Type: String
@@ -123,7 +132,9 @@ Conditions:
 
   UseWebhooks: !Not [ !Equals [ !Ref RepositorySecret, "" ] ]
 
-  UseManualApproval: !Equals [ !Ref ManualApprovalRequired, "true" ]
+  UseManualApproval: !Equals [ !Ref ManualApprovalRequired, 'true' ]
+
+  CodeCommit: !Equals [ !Ref UseCodeCommit, 'true' ]
 
 Mappings:
 
@@ -418,22 +429,41 @@ Resources:
         - !Sub dozuki-${Environment}-apply
       RoleArn: !GetAtt CodePipelineServiceRole.Arn
       Stages:
-      - Name: Checkout
-        Actions:
+      - !If
+        - CodeCommit
         - Name: Checkout
-          Namespace: SourceVariables
-          InputArtifacts: []
-          ActionTypeId:
-            Version: !ImportValue cloudprem-source-action-version
-            Category: Source
-            Owner: Custom
-            Provider: !ImportValue cloudprem-source-action-provider
-          Configuration:
-            GitUrl: !Ref RepositoryUrl
-            Branch: !Ref RepositoryBranch
-          OutputArtifacts:
-          - Name: SourceCodeArtifact
-          RunOrder: 1
+          Actions:
+          - Name: Checkout
+            Namespace: SourceVariables
+            InputArtifacts: []
+            ActionTypeId:
+              Version: '1'
+              Provider: CodeCommit
+              Category: Source
+              Owner: AWS
+            Configuration:
+              RepositoryName: !ImportValue code-commit-repo-name
+              BranchName: !Ref RepositoryBranch
+              PollForSourceChanges: 'false'
+            OutputArtifacts:
+            - Name: SourceCodeArtifact
+            RunOrder: 1
+        - Name: Checkout
+          Actions:
+          - Name: Checkout
+            Namespace: SourceVariables
+            InputArtifacts: []
+            ActionTypeId:
+              Version: !ImportValue cloudprem-source-action-version
+              Category: Source
+              Owner: Custom
+              Provider: !ImportValue cloudprem-source-action-provider
+            Configuration:
+              GitUrl: !Ref RepositoryUrl
+              Branch: !Ref RepositoryBranch
+            OutputArtifacts:
+            - Name: SourceCodeArtifact
+            RunOrder: 1
       - Name: Network
         Actions:
         - Name: Plan
@@ -651,22 +681,41 @@ Resources:
         - !Sub dozuki-${Environment}-destroy
       RoleArn: !GetAtt CodePipelineServiceRole.Arn
       Stages:
-      - Name: Checkout
-        Actions:
+      - !If
+        - CodeCommit
         - Name: Checkout
-          Namespace: SourceVariables
-          InputArtifacts: []
-          ActionTypeId:
-            Version: !ImportValue cloudprem-source-action-version
-            Category: Source
-            Owner: Custom
-            Provider: !ImportValue cloudprem-source-action-provider
-          Configuration:
-            GitUrl: !Ref RepositoryUrl
-            Branch: !Ref RepositoryBranch
-          OutputArtifacts:
-          - Name: SourceCodeArtifact
-          RunOrder: 1
+          Actions:
+          - Name: Checkout
+            Namespace: SourceVariables
+            InputArtifacts: []
+            ActionTypeId:
+              Version: '1'
+              Provider: CodeCommit
+              Category: Source
+              Owner: AWS
+            Configuration:
+              RepositoryName: !ImportValue code-commit-repo-name
+              BranchName: !Ref RepositoryBranch
+              PollForSourceChanges: 'false'
+            OutputArtifacts:
+            - Name: SourceCodeArtifact
+            RunOrder: 1
+        - Name: Checkout
+          Actions:
+          - Name: Checkout
+            Namespace: SourceVariables
+            InputArtifacts: []
+            ActionTypeId:
+              Version: !ImportValue cloudprem-source-action-version
+              Category: Source
+              Owner: Custom
+              Provider: !ImportValue cloudprem-source-action-provider
+            Configuration:
+              GitUrl: !Ref RepositoryUrl
+              Branch: !Ref RepositoryBranch
+            OutputArtifacts:
+            - Name: SourceCodeArtifact
+            RunOrder: 1
       - Name: App
         Actions:
         - Name: Plan

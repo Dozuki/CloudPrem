@@ -28,6 +28,32 @@ Parameters:
     Type: String
     Description: An arbitrary tag name for the owner of the environment pipeline
 
+  CodeCommit:
+    Type: String
+    AllowedValues: [true, false]
+    Default: False
+    Description: Create a local code commit repository for regional configuration, we will seed the repository's `master` branch with the default config.
+
+  CodeCommitBucket:
+    Type: String
+    Default: dozuki-cloudprem-assets
+    Description: If creating CodeCommit repository, what S3 bucket has the seed zip file.
+
+  CodeCommitObject:
+    Type: String
+    Default: cloudprem-config.zip
+    Description: The object in the bucket listed above to seed the repository with.
+
+  CodeCommitVersion:
+    Type: String
+    Default: latest
+    Description: Which version of the seed zip should we use.
+
+Conditions:
+
+    CreateCodeCommit: !Equals [ !Ref CodeCommit, 'true' ]
+    UseLatestSeed: !Equals [ !Ref CodeCommitVersion, latest ]
+
 Mappings:
 
   PartitionMap: 
@@ -43,11 +69,24 @@ Resources:
     Properties:
       Location:
         ApplicationId: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ServerlessRepoArn]
-        SemanticVersion: 1.1.3
+        SemanticVersion: 1.2.0
       Parameters:
         SourceActionVersion: !Ref SourceActionVersion
         SourceActionProvider: !Ref SourceActionProvider
         OwnerName: !Ref OwnerName
+
+  LocalConfig:
+    Type: AWS::CodeCommit::Repository
+    Condition: CreateCodeCommit
+    Properties:
+      RepositoryName: !Sub dozuki-config-${AWS::Region}
+      RepositoryDescription: Infrastructure configuration for stacks in this region.
+      Code:
+        BranchName: master
+        S3:
+          Bucket: !Ref CodeCommitBucket
+          Key: !Ref CodeCommitObject
+          ObjectVersion: !If [ UseLatestSeed , !Ref AWS::NoValue, !Ref CodeCommitVersion ]
 
 Outputs:
 
@@ -62,3 +101,10 @@ Outputs:
   BucketArn:
     Description: Codepipeline artifcats S3 bucket ARN
     Value: !GetAtt DozukiCodepipeline.Outputs.BucketArn
+
+  CodeCommitRepoName:
+    Condition: CreateCodeCommit
+    Description: CodeCommit repository name for regional infra configuration.
+    Export:
+        Name: code-commit-repo-name
+    Value: !GetAtt LocalConfig.Name
