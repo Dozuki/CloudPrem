@@ -14,7 +14,7 @@ def lambda_handler(event, context):
     action_name = approval['actionName']
     token = approval['token']
     plan = approval['customData']
-    if plan == 'Plan: 0 to add, 0 to change, 0 to destroy.\n' or plan == '\n':
+    if plan == 'No Changes':
         print('Auto Approving null plan')
         response = cp.put_approval_result(
             pipelineName=pipeline_name,
