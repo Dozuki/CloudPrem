@@ -25,6 +25,7 @@ Metadata:
       - Label:
           default: Terraform Options
         Parameters:
+          - OverrideRepositoryParameters
           - PipelineAction
           - ManualApprovalRequired
     ParameterLabels:
@@ -46,6 +47,8 @@ Metadata:
         default: "What prefix should we use for resource names if any?"
       OwnerName:
         default: "What tag should we add to all resources to identify the stack owner if any?"
+      OverrideRepositoryParameters:
+        default: "Should we override the specified configuration settings in the repository with values set here?"
       PipelineAction:
         default: "Which action should we execute?"
       ManualApprovalRequired:
@@ -87,6 +90,12 @@ Parameters:
     Default: development
     Description: Path inside the git repository that contains the Dozuki parameters for this environment. Don't use the same path for multiple pipelines
 
+  OverrideRepositoryParameters:
+    Type: String
+    Default: true
+    AllowedValues: [ true, false ]
+    Description: Override 'identifier', 'region' and 'environment' parameters from the repository with the template parameters set here.
+
   PipelineAction:
     Type: String
     Default: Apply
@@ -125,6 +134,8 @@ Parameters:
 Conditions:
 
   IdentifierSet: !Not [ !Equals [ !Ref Identifier, "" ] ]
+
+  OverrideRepositoryParameters: !Equals [ !Ref OverrideRepositoryParameters, true ]
 
   DestroyResources: !Equals [ !Ref PipelineAction, 'Destroy' ]
 
@@ -317,7 +328,8 @@ Resources:
                 - cd ${AWS::Region}/${RepositoryPath}/$MODULE_NAME
                 - terragrunt init --terragrunt-non-interactive
                 - terragrunt plan -out $CODEBUILD_SRC_DIR/plan.json ${command}
-                - 'export PLAN_LOGS=$(terragrunt show $CODEBUILD_SRC_DIR/plan.json -no-color | grep "Plan: ")'
+                - 'export PLAN_OUTPUT=$(terragrunt show $CODEBUILD_SRC_DIR/plan.json -no-color | grep "Plan: ")'
+                - 'export PLAN_LOGS=${!PLAN_OUTPUT:-No Changes}'
                 - echo "$PLAN_LOGS"
             artifacts:
               discard-paths: yes
@@ -328,7 +340,11 @@ Resources:
                 - PLAN_LOGS
                 - CODEBUILD_BUILD_ID
               shell: bash
-          - command: !If
+          - overrides: !If
+              - OverrideRepositoryParameters
+              - !Sub -var 'identifier=${Identifier}' -var 'environment=${Environment}'
+              - ''
+            command: !If
               - DestroyResources
               - -destroy
               - ''
@@ -392,7 +408,10 @@ Resources:
                 - ${command}
           - command: !If
               - DestroyResources
-              - terragrunt refresh && terragrunt destroy -auto-approve
+              - !If # We are using refresh before the destroy due to Terraform 0.14 bug https://github.com/terraform-aws-modules/terraform-aws-eks/issues/1162
+                - OverrideRepositoryParameters
+                - !Sub terragrunt refresh -var 'identifier=${Identifier}' -var 'environment=${Environment}' && terragrunt destroy -auto-approve -var 'identifier=${Identifier}' -var 'environment=${Environment}'
+                - terragrunt refresh && terragrunt destroy -auto-approve
               - terragrunt apply $PLAN_PATH/plan.json
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
@@ -464,10 +483,10 @@ Resources:
             OutputArtifacts:
             - Name: SourceCodeArtifact
             RunOrder: 1
-      - Name: Network
+      - Name: Physical
         Actions:
         - Name: Plan
-          Namespace: BuildNetworkVariables
+          Namespace: BuildPhysicalVariables
           InputArtifacts:
           - Name: SourceCodeArtifact
           ActionTypeId:
@@ -476,10 +495,10 @@ Resources:
             Version: 1
             Provider: CodeBuild
           OutputArtifacts:
-          - Name: PlanNetworkArtifact
+          - Name: PlanPhysicalArtifact
           Configuration:
             ProjectName: !Ref TfPlanCodeBuildProject
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"network","type":"PLAINTEXT"}]'
+            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"physical","type":"PLAINTEXT"}]'
           RunOrder: 1
         - !If
           - UseManualApproval
@@ -491,33 +510,32 @@ Resources:
               Provider: Manual
             Configuration:
               NotificationArn: !ImportValue cp-auto-approve-topic
-              CustomData: !Sub |
-                #{BuildNetworkVariables.PLAN_LOGS}
+              CustomData: '#{BuildPhysicalVariables.PLAN_LOGS}'
               ExternalEntityLink: !Sub
-              - https://console.aws.amazon.com/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildNetworkVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
+              - https://${ConsoleUrl}/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildPhysicalVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
               - ConsoleUrl: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ConsoleUrl]
             RunOrder: 2
           - !Ref AWS::NoValue
         - Name: Apply
           InputArtifacts:
             - Name: SourceCodeArtifact
-            - Name: PlanNetworkArtifact
+            - Name: PlanPhysicalArtifact
           ActionTypeId:
             Category: Build
             Owner: AWS
             Version: 1
             Provider: CodeBuild
           OutputArtifacts:
-            - Name: ApplyNetworkArtifact
+            - Name: ApplyPhysicalArtifact
           Configuration:
             ProjectName: !Ref TfApplyCodeBuildProject
-            PrimarySource: PlanNetworkArtifact
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"network","type":"PLAINTEXT"}]'
+            PrimarySource: PlanPhysicalArtifact
+            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"physical","type":"PLAINTEXT"}]'
           RunOrder: 3
-      - Name: Compute
+      - Name: Logical
         Actions:
         - Name: Plan
-          Namespace: BuildComputeVariables
+          Namespace: BuildLogicalVariables
           InputArtifacts:
           - Name: SourceCodeArtifact
           ActionTypeId:
@@ -526,10 +544,10 @@ Resources:
             Version: 1
             Provider: CodeBuild
           OutputArtifacts:
-          - Name: PlanComputeArtifact
+          - Name: PlanLogicalArtifact
           Configuration:
             ProjectName: !Ref TfPlanCodeBuildProject
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"compute","type":"PLAINTEXT"}]'
+            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"logical","type":"PLAINTEXT"}]'
           RunOrder: 1
         - !If
           - UseManualApproval
@@ -541,135 +559,31 @@ Resources:
               Provider: Manual
             Configuration:
               NotificationArn: !ImportValue cp-auto-approve-topic
-              CustomData: !Sub |
-                #{BuildComputeVariables.PLAN_LOGS}
+              CustomData: '#{BuildLogicalVariables.PLAN_LOGS}'
               ExternalEntityLink: !Sub
-              - https://console.aws.amazon.com/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildComputeVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
+              - https://${ConsoleUrl}/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildLogicalVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
               - ConsoleUrl: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ConsoleUrl]
             RunOrder: 2
           - !Ref AWS::NoValue
         - Name: Apply
           InputArtifacts:
             - Name: SourceCodeArtifact
-            - Name: PlanComputeArtifact
+            - Name: PlanLogicalArtifact
           ActionTypeId:
             Category: Build
             Owner: AWS
             Version: 1
             Provider: CodeBuild
           OutputArtifacts:
-            - Name: ApplyComputeArtifact
+            - Name: ApplyLogicalArtifact
           Configuration:
             ProjectName: !Ref TfApplyCodeBuildProject
-            PrimarySource: PlanComputeArtifact
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"compute","type":"PLAINTEXT"}]'
-          RunOrder: 3
-      - Name: Storage
-        Actions:
-        - Name: Plan
-          Namespace: BuildStorageVariables
-          InputArtifacts:
-          - Name: SourceCodeArtifact
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Version: 1
-            Provider: CodeBuild
-          OutputArtifacts:
-          - Name: PlanStorageArtifact
-          Configuration:
-            ProjectName: !Ref TfPlanCodeBuildProject
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"storage","type":"PLAINTEXT"}]'
-          RunOrder: 1
-        - !If
-          - UseManualApproval
-          - Name: Approve
-            ActionTypeId:
-              Category: Approval
-              Owner: AWS
-              Version: 1
-              Provider: Manual
-            Configuration:
-              NotificationArn: !ImportValue cp-auto-approve-topic
-              CustomData: !Sub |
-                #{BuildStorageVariables.PLAN_LOGS}
-              ExternalEntityLink: !Sub
-              - https://console.aws.amazon.com/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildStorageVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
-              - ConsoleUrl: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ConsoleUrl]
-            RunOrder: 2
-          - !Ref AWS::NoValue
-        - Name: Apply
-          InputArtifacts:
-            - Name: SourceCodeArtifact
-            - Name: PlanStorageArtifact
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Version: 1
-            Provider: CodeBuild
-          OutputArtifacts:
-            - Name: ApplyStorageArtifact
-          Configuration:
-            ProjectName: !Ref TfApplyCodeBuildProject
-            PrimarySource: PlanStorageArtifact
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"storage","type":"PLAINTEXT"}]'
-          RunOrder: 3
-      - Name: App
-        Actions:
-        - Name: Plan
-          Namespace: BuildAppVariables
-          InputArtifacts:
-          - Name: SourceCodeArtifact
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Version: 1
-            Provider: CodeBuild
-          OutputArtifacts:
-          - Name: PlanAppArtifact
-          Configuration:
-            ProjectName: !Ref TfPlanCodeBuildProject
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"app","type":"PLAINTEXT"}]'
-          RunOrder: 1
-        - !If
-          - UseManualApproval
-          - Name: Approve
-            ActionTypeId:
-              Category: Approval
-              Owner: AWS
-              Version: 1
-              Provider: Manual
-            Configuration:
-              NotificationArn: !ImportValue cp-auto-approve-topic
-              CustomData: !Sub |
-                #{BuildAppVariables.PLAN_LOGS}
-              ExternalEntityLink: !Sub
-              - https://console.aws.amazon.com/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildAppVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
-              - ConsoleUrl: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ConsoleUrl]
-            RunOrder: 2
-          - !Ref AWS::NoValue
-        - Name: Apply
-          InputArtifacts:
-            - Name: SourceCodeArtifact
-            - Name: PlanAppArtifact
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Version: 1
-            Provider: CodeBuild
-          OutputArtifacts:
-            - Name: ApplyAppArtifact
-          Configuration:
-            ProjectName: !Ref TfApplyCodeBuildProject
-            PrimarySource: PlanAppArtifact
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"app","type":"PLAINTEXT"}]'
+            PrimarySource: PlanLogicalArtifact
+            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"logical","type":"PLAINTEXT"}]'
           RunOrder: 3
       ArtifactStore:
         Type: S3
         Location: !ImportValue cloudprem-bucket-name
-    DependsOn: 
-    - TfPlanCodeBuildProject
-    - TfApplyCodeBuildProject
 
   ProjectDestroyPipeline:
     Type: AWS::CodePipeline::Pipeline
@@ -716,10 +630,10 @@ Resources:
             OutputArtifacts:
             - Name: SourceCodeArtifact
             RunOrder: 1
-      - Name: App
+      - Name: Physical
         Actions:
         - Name: Plan
-          Namespace: BuildAppVariables
+          Namespace: BuildPhysicalVariables
           InputArtifacts:
           - Name: SourceCodeArtifact
           ActionTypeId:
@@ -728,10 +642,10 @@ Resources:
             Version: 1
             Provider: CodeBuild
           OutputArtifacts:
-          - Name: PlanAppArtifact
+          - Name: PlanPhysicalArtifact
           Configuration:
             ProjectName: !Ref TfPlanCodeBuildProject
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"app","type":"PLAINTEXT"}]'
+            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"physical","type":"PLAINTEXT"}]'
           RunOrder: 1
         - !If
           - UseManualApproval
@@ -743,185 +657,31 @@ Resources:
               Provider: Manual
             Configuration:
               NotificationArn: !ImportValue cp-auto-approve-topic
-              CustomData: !Sub |
-                #{BuildAppVariables.PLAN_LOGS}
+              CustomData: '#{BuildPhysicalVariables.PLAN_LOGS}'
               ExternalEntityLink: !Sub
-              - https://console.aws.amazon.com/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildAppVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
+              - https://${ConsoleUrl}/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildPhysicalVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
               - ConsoleUrl: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ConsoleUrl]
             RunOrder: 2
           - !Ref AWS::NoValue
         - Name: Destroy
           InputArtifacts:
             - Name: SourceCodeArtifact
-            - Name: PlanAppArtifact
+            - Name: PlanPhysicalArtifact
           ActionTypeId:
             Category: Build
             Owner: AWS
             Version: 1
             Provider: CodeBuild
           OutputArtifacts:
-            - Name: ApplyAppArtifact
+            - Name: ApplyPhysicalArtifact
           Configuration:
             ProjectName: !Ref TfApplyCodeBuildProject
-            PrimarySource: PlanAppArtifact
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"app","type":"PLAINTEXT"}]'
-          RunOrder: 3
-      - Name: Storage
-        Actions:
-        - Name: Plan
-          Namespace: BuildStorageVariables
-          InputArtifacts:
-          - Name: SourceCodeArtifact
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Version: 1
-            Provider: CodeBuild
-          OutputArtifacts:
-          - Name: PlanStorageArtifact
-          Configuration:
-            ProjectName: !Ref TfPlanCodeBuildProject
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"storage","type":"PLAINTEXT"}]'
-          RunOrder: 1
-        - !If
-          - UseManualApproval
-          - Name: Approve
-            ActionTypeId:
-              Category: Approval
-              Owner: AWS
-              Version: 1
-              Provider: Manual
-            Configuration:
-              NotificationArn: !ImportValue cp-auto-approve-topic
-              CustomData: !Sub |
-                #{BuildStorageVariables.PLAN_LOGS}
-              ExternalEntityLink: !Sub
-              - https://console.aws.amazon.com/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildStorageVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
-              - ConsoleUrl: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ConsoleUrl]
-            RunOrder: 2
-          - !Ref AWS::NoValue
-        - Name: Destroy
-          InputArtifacts:
-            - Name: SourceCodeArtifact
-            - Name: PlanStorageArtifact
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Version: 1
-            Provider: CodeBuild
-          OutputArtifacts:
-            - Name: ApplyStorageArtifact
-          Configuration:
-            ProjectName: !Ref TfApplyCodeBuildProject
-            PrimarySource: PlanStorageArtifact
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"storage","type":"PLAINTEXT"}]'
-          RunOrder: 3
-      - Name: Compute
-        Actions:
-        - Name: Plan
-          Namespace: BuildComputeVariables
-          InputArtifacts:
-          - Name: SourceCodeArtifact
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Version: 1
-            Provider: CodeBuild
-          OutputArtifacts:
-          - Name: PlanComputeArtifact
-          Configuration:
-            ProjectName: !Ref TfPlanCodeBuildProject
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"compute","type":"PLAINTEXT"}]'
-          RunOrder: 1
-        - !If
-          - UseManualApproval
-          - Name: Approve
-            ActionTypeId:
-              Category: Approval
-              Owner: AWS
-              Version: 1
-              Provider: Manual
-            Configuration:
-              NotificationArn: !ImportValue cp-auto-approve-topic
-              CustomData: !Sub |
-                #{BuildComputeVariables.PLAN_LOGS}
-              ExternalEntityLink: !Sub
-              - https://console.aws.amazon.com/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildComputeVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
-              - ConsoleUrl: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ConsoleUrl]
-            RunOrder: 2
-          - !Ref AWS::NoValue
-        - Name: Destroy
-          InputArtifacts:
-            - Name: SourceCodeArtifact
-            - Name: PlanComputeArtifact
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Version: 1
-            Provider: CodeBuild
-          OutputArtifacts:
-            - Name: ApplyComputeArtifact
-          Configuration:
-            ProjectName: !Ref TfApplyCodeBuildProject
-            PrimarySource: PlanComputeArtifact
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"compute","type":"PLAINTEXT"}]'
-          RunOrder: 3
-      - Name: Network
-        Actions:
-        - Name: Plan
-          Namespace: BuildNetworkVariables
-          InputArtifacts:
-          - Name: SourceCodeArtifact
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Version: 1
-            Provider: CodeBuild
-          OutputArtifacts:
-          - Name: PlanNetworkArtifact
-          Configuration:
-            ProjectName: !Ref TfPlanCodeBuildProject
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"network","type":"PLAINTEXT"}]'
-          RunOrder: 1
-        - !If
-          - UseManualApproval
-          - Name: Approve
-            ActionTypeId:
-              Category: Approval
-              Owner: AWS
-              Version: 1
-              Provider: Manual
-            Configuration:
-              NotificationArn: !ImportValue cp-auto-approve-topic
-              CustomData: !Sub |
-                #{BuildNetworkVariables.PLAN_LOGS}
-              ExternalEntityLink: !Sub
-              - https://console.aws.amazon.com/codesuite/codebuild/${AWS::AccountId}/projects/${TfPlanCodeBuildProject}/build/#{BuildNetworkVariables.CODEBUILD_BUILD_ID}/?region=${AWS::Region}
-              - ConsoleUrl: !FindInMap [ PartitionMap, !Ref "AWS::Partition", ConsoleUrl]
-            RunOrder: 2
-          - !Ref AWS::NoValue
-        - Name: Destroy
-          InputArtifacts:
-            - Name: SourceCodeArtifact
-            - Name: PlanNetworkArtifact
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Version: 1
-            Provider: CodeBuild
-          OutputArtifacts:
-            - Name: ApplyNetworkArtifact
-          Configuration:
-            ProjectName: !Ref TfApplyCodeBuildProject
-            PrimarySource: PlanNetworkArtifact
-            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"network","type":"PLAINTEXT"}]'
+            PrimarySource: PlanPhysicalArtifact
+            EnvironmentVariables: '[{"name":"MODULE_NAME","value":"physical","type":"PLAINTEXT"}]'
           RunOrder: 3
       ArtifactStore:
         Type: S3
         Location: !ImportValue cloudprem-bucket-name
-    DependsOn:
-    - TfPlanCodeBuildProject
-    - TfApplyCodeBuildProject
 
   Webhook:
     Type: 'AWS::CodePipeline::Webhook'
