@@ -317,8 +317,8 @@ Resources:
                 runtime-versions:
                   golang: 1.15
                 commands:
-                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/1.0.6/terraform_1.0.6_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
-                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.31.8/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
+                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/1.1.8/terraform_1.1.8_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
+                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.37.1/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
                   - aws_credentials=$(aws sts assume-role --role-arn ${DeploymentRole.Arn} --role-session-name "Terraform")
                   - export AWS_ACCESS_KEY_ID=$(echo $aws_credentials|jq '.Credentials.AccessKeyId'|tr -d '"')
                   - export AWS_SECRET_ACCESS_KEY=$(echo $aws_credentials|jq '.Credentials.SecretAccessKey'|tr -d '"')
@@ -394,8 +394,8 @@ Resources:
                 runtime-versions:
                   golang: 1.15
                 commands:
-                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/1.0.6/terraform_1.0.6_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
-                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.31.8/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
+                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/1.1.8/terraform_1.1.8_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
+                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.37.1/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
                   - aws_credentials=$(aws sts assume-role --role-arn ${DeploymentRole.Arn} --role-session-name "Terraform")
                   - export AWS_ACCESS_KEY_ID=$(echo $aws_credentials|jq '.Credentials.AccessKeyId'|tr -d '"')
                   - export AWS_SECRET_ACCESS_KEY=$(echo $aws_credentials|jq '.Credentials.SecretAccessKey'|tr -d '"')
