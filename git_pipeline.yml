@@ -352,7 +352,7 @@ Resources:
                 commands:
                 - cd ${AWS::Region}/${RepositoryPath}/$MODULE_NAME
                 - terragrunt init --terragrunt-non-interactive
-                - terragrunt plan -out $CODEBUILD_SRC_DIR/plan.json ${command}
+                - terragrunt plan -out $CODEBUILD_SRC_DIR/plan.json
                 - 'export PLAN_OUTPUT=$(terragrunt show $CODEBUILD_SRC_DIR/plan.json -no-color | grep "Plan: ")'
                 - 'export PLAN_LOGS=${!PLAN_OUTPUT:-No Changes}'
                 - echo "$PLAN_LOGS"
@@ -365,14 +365,6 @@ Resources:
                 - PLAN_LOGS
                 - CODEBUILD_BUILD_ID
               shell: bash
-          - overrides: !If
-              - OverrideRepositoryParameters
-              - !Sub -var 'identifier=${Identifier}' -var 'environment=${Environment}'
-              - ''
-            command: !If
-              - DestroyResources
-              - -destroy
-              - ''
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
@@ -383,6 +375,18 @@ Resources:
           Value: !Ref Environment
         - Name: TF_INPUT
           Value: 'true'
+        - Name: TF_VAR_identifier
+          Value: !Ref Identifier
+        - Name: TF_VAR_environment
+          Value: !Ref Environment
+        - Name: TF_VAR_replicated_app_sequence_number
+          Value: !Ref ReplicatedAppSequence
+        - Name: TF_VAR_replicated_channel
+          Value: !Ref ReplicatedChannel
+        - Name: TF_VAR_cf_template_version
+          Value: 1
+        - Name: TF_CLI_ARGS_plan
+          Value: !If [ DestroyResources, "-destroy", ""]
       LogsConfig:
         CloudWatchLogs:
           Status:  ENABLED
@@ -446,6 +450,16 @@ Resources:
         EnvironmentVariables:
         - Name: Environment
           Value: !Ref Environment
+        - Name: TF_VAR_identifier
+          Value: !Ref Identifier
+        - Name: TF_VAR_environment
+          Value: !Ref Environment
+        - Name: TF_VAR_replicated_app_sequence_number
+          Value: !Ref ReplicatedAppSequence
+        - Name: TF_VAR_replicated_channel
+          Value: !Ref ReplicatedChannel
+        - Name: TF_VAR_cf_template_version
+          Value: 1
       LogsConfig:
         CloudWatchLogs:
           Status:  ENABLED
