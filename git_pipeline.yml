@@ -25,7 +25,6 @@ Metadata:
       - Label:
           default: Terraform Options
         Parameters:
-          - OverrideRepositoryParameters
           - PipelineAction
           - ManualApprovalRequired
       - Label:
@@ -52,8 +51,6 @@ Metadata:
         default: "What prefix should we use for resource names if any?"
       OwnerName:
         default: "What tag should we add to all resources to identify the stack owner if any?"
-      OverrideRepositoryParameters:
-        default: "Should we override the specified configuration settings in the repository with values set here?"
       PipelineAction:
         default: "Which action should we execute?"
       ManualApprovalRequired:
@@ -98,12 +95,6 @@ Parameters:
     Type: String
     Default: development
     Description: Path inside the git repository that contains the Dozuki parameters for this environment. Don't use the same path for multiple pipelines
-
-  OverrideRepositoryParameters:
-    Type: String
-    Default: true
-    AllowedValues: [ true, false ]
-    Description: Override 'identifier', 'region' and 'environment' parameters from the repository with the template parameters set here.
 
   PipelineAction:
     Type: String
@@ -159,8 +150,6 @@ Parameters:
 Conditions:
 
   IdentifierSet: !Not [ !Equals [ !Ref Identifier, "" ] ]
-
-  OverrideRepositoryParameters: !Equals [ !Ref OverrideRepositoryParameters, true ]
 
   DestroyResources: !Equals [ !Ref PipelineAction, 'Destroy' ]
 
@@ -334,8 +323,7 @@ Resources:
         Type: CODEPIPELINE
       Source:
         Type: CODEPIPELINE
-        BuildSpec: !Sub        
-          - |
+        BuildSpec: !Sub |
             version: 0.2
             phases:
               install:
@@ -436,12 +424,9 @@ Resources:
                 - terragrunt init --terragrunt-non-interactive
                 - ${command}
           - command: !If
-              - DestroyResources
-              - !If # We are using refresh before the destroy due to Terraform 0.14 bug https://github.com/terraform-aws-modules/terraform-aws-eks/issues/1162
-                - OverrideRepositoryParameters
-                - !Sub terragrunt refresh -var 'identifier=${Identifier}' -var 'environment=${Environment}' && terragrunt destroy -auto-approve -var 'identifier=${Identifier}' -var 'environment=${Environment}'
-                - terragrunt refresh && terragrunt destroy -auto-approve
-              - terragrunt apply $PLAN_PATH/plan.json
+            - DestroyResources
+            - terragrunt refresh && terragrunt destroy -auto-approve
+            - terragrunt apply $PLAN_PATH/plan.json
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
