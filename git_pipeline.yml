@@ -64,7 +64,6 @@ Parameters:
     Type: String
     MinLength: 50
     Description: The contents of the .rli license file provided by Dozuki
-    NoEcho: true
 
   UseCodeCommit:
     Type: String
