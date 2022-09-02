@@ -28,6 +28,11 @@ Metadata:
           - OverrideRepositoryParameters
           - PipelineAction
           - ManualApprovalRequired
+      - Label:
+          default: Application Bootstrap Options
+        Parameters:
+          - ReplicatedAppSequence
+          - ReplicatedChannel
     ParameterLabels:
       DozukiLicense:
         default: "Please enter your Dozuki license in the box below."
@@ -53,6 +58,10 @@ Metadata:
         default: "Which action should we execute?"
       ManualApprovalRequired:
         default: "Should we require manual approval for infrastructure changes?"
+      ReplicatedAppSequence:
+        default: "Should we bootstrap a specific replicated sequence when installing the app?"
+      ReplicatedChannel:
+        default: "Which channel is the above-mentioned sequence deployed to? (Note: This channel must be associated with your customer license)"
 
 Parameters:
 
@@ -130,6 +139,22 @@ Parameters:
     Description:
       If true a manual approval is required for each module that has infrastructure changes. This should probably be
       true for production stacks and false for dev stacks.
+
+  ReplicatedAppSequence:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    MaxValue: 9999
+    Description:
+      When bootstrapping a fresh install of the app we can target a specific Replicated sequence number instead of just
+      installing whatever is the latest one associated with the channel described below.
+
+  ReplicatedChannel:
+    Type: String
+    Default: ""
+    Description:
+      When targeting a specific Replicated sequence number above, this is the channel where the sequence is deployed. You
+      only need to specify this if it's not the "default" channel associated with your license.
 
 Conditions:
 
