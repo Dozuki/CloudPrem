@@ -25,9 +25,13 @@ Metadata:
       - Label:
           default: Terraform Options
         Parameters:
-          - OverrideRepositoryParameters
           - PipelineAction
           - ManualApprovalRequired
+      - Label:
+          default: Application Bootstrap Options
+        Parameters:
+          - ReplicatedAppSequence
+          - ReplicatedChannel
     ParameterLabels:
       DozukiLicense:
         default: "Please enter your Dozuki license in the box below."
@@ -41,18 +45,18 @@ Metadata:
         default: "Which branch in the above-mentioned repository should we pull settings from?"
       RepositoryPath:
         default: "Which path in the above-mentioned repository should we pull settings from?"
-      RepositorySecret:
-        default: "If using webhooks, enter the authentication secret here."
       Identifier:
         default: "What prefix should we use for resource names if any?"
       OwnerName:
         default: "What tag should we add to all resources to identify the stack owner if any?"
-      OverrideRepositoryParameters:
-        default: "Should we override the specified configuration settings in the repository with values set here?"
       PipelineAction:
         default: "Which action should we execute?"
       ManualApprovalRequired:
         default: "Should we require manual approval for infrastructure changes?"
+      ReplicatedAppSequence:
+        default: "Should we bootstrap a specific replicated sequence when installing the app?"
+      ReplicatedChannel:
+        default: "Which channel is the above-mentioned sequence deployed to? (Note: This channel must be associated with your customer license)"
 
 Parameters:
 
@@ -60,7 +64,6 @@ Parameters:
     Type: String
     MinLength: 50
     Description: The contents of the .rli license file provided by Dozuki
-    NoEcho: true
 
   UseCodeCommit:
     Type: String
@@ -73,13 +76,6 @@ Parameters:
     Default: https://github.com/Dozuki/CloudPrem-Config.git
     Description: SSH/HTTP URL of the git repository containing the Dozuki parameters
 
-  RepositorySecret:
-    Type: String
-    NoEcho: true
-    Description:
-      If using Webhooks enter your webhook secret here, this will allow for auto-updating of your instances whenever
-      code is pushed to your config repository. If left blank webhooks will be disabled.
-
   RepositoryBranch:
     Type: String
     Default: master
@@ -89,12 +85,6 @@ Parameters:
     Type: String
     Default: development
     Description: Path inside the git repository that contains the Dozuki parameters for this environment. Don't use the same path for multiple pipelines
-
-  OverrideRepositoryParameters:
-    Type: String
-    Default: true
-    AllowedValues: [ true, false ]
-    Description: Override 'identifier', 'region' and 'environment' parameters from the repository with the template parameters set here.
 
   PipelineAction:
     Type: String
@@ -131,17 +121,29 @@ Parameters:
       If true a manual approval is required for each module that has infrastructure changes. This should probably be
       true for production stacks and false for dev stacks.
 
+  ReplicatedAppSequence:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    MaxValue: 9999
+    Description:
+      When bootstrapping a fresh install of the app we can target a specific Replicated sequence number instead of just
+      installing whatever is the latest one associated with the channel described below.
+
+  ReplicatedChannel:
+    Type: String
+    Default: ""
+    Description:
+      When targeting a specific Replicated sequence number above, this is the channel where the sequence is deployed. You
+      only need to specify this if it's not the "default" channel associated with your license.
+
 Conditions:
 
   IdentifierSet: !Not [ !Equals [ !Ref Identifier, "" ] ]
 
-  OverrideRepositoryParameters: !Equals [ !Ref OverrideRepositoryParameters, true ]
-
   DestroyResources: !Equals [ !Ref PipelineAction, 'Destroy' ]
 
   CreateResources: !Equals [ !Ref PipelineAction, 'Apply' ]
-
-  UseWebhooks: !Not [ !Equals [ !Ref RepositorySecret, "" ] ]
 
   UseManualApproval: !Equals [ !Ref ManualApprovalRequired, 'true' ]
 
@@ -167,19 +169,6 @@ Resources:
       Description: The contents of the Dozuki license file provided to you.
       Type: String
       Value: !Ref DozukiLicense
-
-  RepositoryWebhookSecret:
-    Type: AWS::SSM::Parameter
-    Condition: UseWebhooks
-    Properties:
-      Name: !If
-        - IdentifierSet
-        - !Sub /${Identifier}/dozuki/${Environment}/webhooksecret
-        - !Sub /dozuki/${Environment}/webhooksecret
-      Description: The repository secret for webhook support.
-      Type: String
-      Value: !Ref RepositorySecret
-
 
 #   # ############### Roles ##############
 
@@ -309,8 +298,7 @@ Resources:
         Type: CODEPIPELINE
       Source:
         Type: CODEPIPELINE
-        BuildSpec: !Sub        
-          - |
+        BuildSpec: !Sub |
             version: 0.2
             phases:
               install:
@@ -327,7 +315,7 @@ Resources:
                 commands:
                 - cd ${AWS::Region}/${RepositoryPath}/$MODULE_NAME
                 - terragrunt init --terragrunt-non-interactive
-                - terragrunt plan -out $CODEBUILD_SRC_DIR/plan.json ${command}
+                - terragrunt plan -out $CODEBUILD_SRC_DIR/plan.json
                 - 'export PLAN_OUTPUT=$(terragrunt show $CODEBUILD_SRC_DIR/plan.json -no-color | grep "Plan: ")'
                 - 'export PLAN_LOGS=${!PLAN_OUTPUT:-No Changes}'
                 - echo "$PLAN_LOGS"
@@ -340,14 +328,6 @@ Resources:
                 - PLAN_LOGS
                 - CODEBUILD_BUILD_ID
               shell: bash
-          - overrides: !If
-              - OverrideRepositoryParameters
-              - !Sub -var 'identifier=${Identifier}' -var 'environment=${Environment}'
-              - ''
-            command: !If
-              - DestroyResources
-              - -destroy
-              - ''
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
@@ -358,6 +338,18 @@ Resources:
           Value: !Ref Environment
         - Name: TF_INPUT
           Value: 'true'
+        - Name: TF_VAR_identifier
+          Value: !Ref Identifier
+        - Name: TF_VAR_environment
+          Value: !Ref Environment
+        - Name: TF_VAR_replicated_app_sequence_number
+          Value: !Ref ReplicatedAppSequence
+        - Name: TF_VAR_replicated_channel
+          Value: !Ref ReplicatedChannel
+        - Name: TF_VAR_cf_template_version
+          Value: 1
+        - Name: TF_CLI_ARGS_plan
+          Value: !If [ DestroyResources, "-destroy", ""]
       LogsConfig:
         CloudWatchLogs:
           Status:  ENABLED
@@ -407,12 +399,9 @@ Resources:
                 - terragrunt init --terragrunt-non-interactive
                 - ${command}
           - command: !If
-              - DestroyResources
-              - !If # We are using refresh before the destroy due to Terraform 0.14 bug https://github.com/terraform-aws-modules/terraform-aws-eks/issues/1162
-                - OverrideRepositoryParameters
-                - !Sub terragrunt refresh -var 'identifier=${Identifier}' -var 'environment=${Environment}' && terragrunt destroy -auto-approve -var 'identifier=${Identifier}' -var 'environment=${Environment}'
-                - terragrunt refresh && terragrunt destroy -auto-approve
-              - terragrunt apply $PLAN_PATH/plan.json
+            - DestroyResources
+            - terragrunt refresh && terragrunt destroy -auto-approve
+            - terragrunt apply $PLAN_PATH/plan.json
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
@@ -421,6 +410,16 @@ Resources:
         EnvironmentVariables:
         - Name: Environment
           Value: !Ref Environment
+        - Name: TF_VAR_identifier
+          Value: !Ref Identifier
+        - Name: TF_VAR_environment
+          Value: !Ref Environment
+        - Name: TF_VAR_replicated_app_sequence_number
+          Value: !Ref ReplicatedAppSequence
+        - Name: TF_VAR_replicated_channel
+          Value: !Ref ReplicatedChannel
+        - Name: TF_VAR_cf_template_version
+          Value: 1
       LogsConfig:
         CloudWatchLogs:
           Status:  ENABLED
@@ -683,24 +682,6 @@ Resources:
         Type: S3
         Location: !ImportValue cloudprem-bucket-name
 
-  Webhook:
-    Type: 'AWS::CodePipeline::Webhook'
-    Condition: UseWebhooks
-    Properties:
-      AuthenticationConfiguration:
-        SecretToken: !Ref RepositorySecret
-      Filters:
-        - JsonPath: "$.ref"
-          MatchEquals: refs/heads/{Branch}
-      Authentication: GITHUB_HMAC
-      TargetPipeline: !If
-      - DestroyResources
-      - !Ref ProjectDestroyPipeline
-      - !Ref ProjectApplyPipeline
-      TargetAction: Checkout
-      TargetPipelineVersion: 1
-      RegisterWithThirdParty: 'false'
-
 Outputs:
 
   LicenseParameterName:
@@ -728,11 +709,6 @@ Outputs:
   PipelineAction:
     Description: Terraform action that this pipeline executes
     Value: !Ref PipelineAction
-
-  WebhookURL:
-    Description: Webhook URL to enter into webhook configuration on your github config repository.
-    Value: !GetAtt Webhook.Url
-    Condition: UseWebhooks
 
   PathLock:
     Value: 'true'
