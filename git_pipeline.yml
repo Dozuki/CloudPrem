@@ -121,15 +121,6 @@ Parameters:
       If true a manual approval is required for each module that has infrastructure changes. This should probably be
       true for production stacks and false for dev stacks.
 
-  ReplicatedAppSequence:
-    Type: Number
-    Default: 0
-    MinValue: 0
-    MaxValue: 9999
-    Description:
-      When bootstrapping a fresh install of the app we can target a specific Replicated sequence number instead of just
-      installing whatever is the latest one associated with the channel described below.
-
   ReplicatedChannel:
     Type: String
     Default: ""
@@ -342,8 +333,6 @@ Resources:
           Value: !Ref Identifier
         - Name: TF_VAR_environment
           Value: !Ref Environment
-        - Name: TF_VAR_replicated_app_sequence_number
-          Value: !Ref ReplicatedAppSequence
         - Name: TF_VAR_replicated_channel
           Value: !Ref ReplicatedChannel
         - Name: TF_VAR_cf_template_version
@@ -414,8 +403,6 @@ Resources:
           Value: !Ref Identifier
         - Name: TF_VAR_environment
           Value: !Ref Environment
-        - Name: TF_VAR_replicated_app_sequence_number
-          Value: !Ref ReplicatedAppSequence
         - Name: TF_VAR_replicated_channel
           Value: !Ref ReplicatedChannel
         - Name: TF_VAR_cf_template_version
