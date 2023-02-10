@@ -338,7 +338,7 @@ Resources:
         - Name: TF_VAR_replicated_channel
           Value: !Ref ReplicatedChannel
         - Name: TF_VAR_cf_template_version
-          Value: 1
+          Value: 2
         - Name: TF_CLI_ARGS_plan
           Value: !If [ DestroyResources, "-destroy", ""]
       LogsConfig:
@@ -410,7 +410,7 @@ Resources:
         - Name: TF_VAR_replicated_channel
           Value: !Ref ReplicatedChannel
         - Name: TF_VAR_cf_template_version
-          Value: 1
+          Value: 2
       LogsConfig:
         CloudWatchLogs:
           Status:  ENABLED
