@@ -19,7 +19,7 @@ Metadata:
     Labels:
     - codepipeline
     HomePageUrl: https://github.com/Dozuki/CloudPrem
-    SemanticVersion: 1.2.8
+    SemanticVersion: 1.2.13
     SourceCodeUrl: https://github.com/Dozuki/CloudPrem
 Parameters:
   SourceActionVersion:
@@ -81,6 +81,8 @@ Resources:
       OutputArtifactDetails:
         MaximumCount: 1
         MinimumCount: 1
+    Metadata:
+      SamResourceId: CustomSourceAction
   KeysBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
@@ -88,6 +90,8 @@ Resources:
     Properties:
       BucketName:
         Fn::Sub: dozuki-ssh-keys-${AWS::Region}-${AWS::AccountId}
+    Metadata:
+      SamResourceId: KeysBucket
   KMSKey:
     Type: AWS::KMS::Key
     Properties:
@@ -115,6 +119,8 @@ Resources:
           - kms:GenerateDataKey*
           - kms:DescribeKey
           Resource: '*'
+    Metadata:
+      SamResourceId: KMSKey
   CreateSSHKeyFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -130,6 +136,8 @@ Resources:
       - S3CrudPolicy:
           BucketName:
             Ref: KeysBucket
+    Metadata:
+      SamResourceId: CreateSSHKeyFunction
   CreateSSHKey:
     Type: AWS::CloudFormation::CustomResource
     Version: '1.0'
@@ -144,6 +152,8 @@ Resources:
         Ref: AWS::Region
       KMSKey:
         Ref: KMSKey
+    Metadata:
+      SamResourceId: CreateSSHKey
   GitPullFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -152,7 +162,7 @@ Resources:
       Description: Custom source action for CodePipeline. Pulls the source code from
         any Git repository.
       Handler: lambda_function.lambda_handler
-      CodeUri: s3://dozuki-lambda/0681de66e51eb374e7e6af43f0d2b631
+      CodeUri: s3://dozuki-lambda/0b3832d234021c41a95553d8b13adfea
       Layers:
       - Fn::If:
         - IsGov
@@ -191,8 +201,12 @@ Resources:
             Schedule: rate(1 minute)
             Description: Fire CodePipeline custom action polling
             Enabled: true
+    Metadata:
+      SamResourceId: GitPullFunction
   AutoApproveTopic:
     Type: AWS::SNS::Topic
+    Metadata:
+      SamResourceId: AutoApproveTopic
   AutoApproveFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -219,6 +233,8 @@ Resources:
           Properties:
             Topic:
               Ref: AutoApproveTopic
+    Metadata:
+      SamResourceId: AutoApproveFunction
   S3ArtifactsBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
@@ -228,6 +244,8 @@ Resources:
         Fn::Sub: dozuki-codepipeline-${AWS::Region}-${AWS::AccountId}
       VersioningConfiguration:
         Status: Enabled
+    Metadata:
+      SamResourceId: S3ArtifactsBucket
 Outputs:
   PublicSSHKey:
     Description: Public SSH key for the Git CodePipeline source stage. Add the SSH
