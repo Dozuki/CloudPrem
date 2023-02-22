@@ -21,7 +21,7 @@ Metadata:
     LicenseUrl: LICENSE
     Labels: ['codepipeline']
     HomePageUrl: https://github.com/Dozuki/CloudPrem
-    SemanticVersion: 1.2.8
+    SemanticVersion: 1.2.13
     SourceCodeUrl: https://github.com/Dozuki/CloudPrem
 
 Parameters:

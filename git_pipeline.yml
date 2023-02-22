@@ -7,7 +7,7 @@ Metadata:
       - Label:
           default: Environment Configuration
         Parameters:
-          - DozukiLicense
+          - DozukiCustomerID
           - Environment
       - Label:
           default: Settings Repository Configuration
@@ -33,8 +33,8 @@ Metadata:
           - ReplicatedAppSequence
           - ReplicatedChannel
     ParameterLabels:
-      DozukiLicense:
-        default: "Please enter your Dozuki license in the box below."
+      DozukiCustomerID:
+        default: "Please enter your Dozuki Customer ID in the box below."
       Environment:
         default: "What environment tag should we use for this installation?"
       UseCodeCommit:
@@ -60,10 +60,11 @@ Metadata:
 
 Parameters:
 
-  DozukiLicense:
+  DozukiCustomerID:
     Type: String
-    MinLength: 50
-    Description: The contents of the .rli license file provided by Dozuki
+    MinLength: 10
+    MaxLength: 30
+    Description: The customer ID provided to you by Dozuki
 
   UseCodeCommit:
     Type: String
@@ -121,15 +122,6 @@ Parameters:
       If true a manual approval is required for each module that has infrastructure changes. This should probably be
       true for production stacks and false for dev stacks.
 
-  ReplicatedAppSequence:
-    Type: Number
-    Default: 0
-    MinValue: 0
-    MaxValue: 9999
-    Description:
-      When bootstrapping a fresh install of the app we can target a specific Replicated sequence number instead of just
-      installing whatever is the latest one associated with the channel described below.
-
   ReplicatedChannel:
     Type: String
     Default: ""
@@ -159,16 +151,16 @@ Mappings:
 
 Resources:
 
-  DozukiLicenseParameter:
+  DozukiCustomerIDParameter:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !If
         - IdentifierSet
-        - !Sub /${Identifier}/dozuki/${Environment}/license
-        - !Sub /dozuki/${Environment}/license
-      Description: The contents of the Dozuki license file provided to you.
+        - !Sub /${Identifier}/dozuki/${Environment}/customer_id
+        - !Sub /dozuki/${Environment}/customer_id
+      Description: The customer ID for your Dozuki license.
       Type: String
-      Value: !Ref DozukiLicense
+      Value: !Ref DozukiCustomerID
 
 #   # ############### Roles ##############
 
@@ -305,6 +297,8 @@ Resources:
                 runtime-versions:
                   golang: 1.15
                 commands:
+                  - curl -L https://storage.googleapis.com/kubernetes-release/release/v1.21.0/bin/linux/amd64/kubectl > /usr/local/bin/kubectl
+                  - chmod 755 /usr/local/bin/kubectl
                   - wget -O terraform.zip https://releases.hashicorp.com/terraform/1.1.8/terraform_1.1.8_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
                   - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.37.1/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
                   - aws_credentials=$(aws sts assume-role --role-arn ${DeploymentRole.Arn} --role-session-name "Terraform")
@@ -342,12 +336,10 @@ Resources:
           Value: !Ref Identifier
         - Name: TF_VAR_environment
           Value: !Ref Environment
-        - Name: TF_VAR_replicated_app_sequence_number
-          Value: !Ref ReplicatedAppSequence
         - Name: TF_VAR_replicated_channel
           Value: !Ref ReplicatedChannel
         - Name: TF_VAR_cf_template_version
-          Value: 1
+          Value: 2
         - Name: TF_CLI_ARGS_plan
           Value: !If [ DestroyResources, "-destroy", ""]
       LogsConfig:
@@ -386,6 +378,8 @@ Resources:
                 runtime-versions:
                   golang: 1.15
                 commands:
+                  - curl -L https://storage.googleapis.com/kubernetes-release/release/v1.21.0/bin/linux/amd64/kubectl > /usr/local/bin/kubectl
+                  - chmod 755 /usr/local/bin/kubectl
                   - wget -O terraform.zip https://releases.hashicorp.com/terraform/1.1.8/terraform_1.1.8_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
                   - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.37.1/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
                   - aws_credentials=$(aws sts assume-role --role-arn ${DeploymentRole.Arn} --role-session-name "Terraform")
@@ -414,12 +408,10 @@ Resources:
           Value: !Ref Identifier
         - Name: TF_VAR_environment
           Value: !Ref Environment
-        - Name: TF_VAR_replicated_app_sequence_number
-          Value: !Ref ReplicatedAppSequence
         - Name: TF_VAR_replicated_channel
           Value: !Ref ReplicatedChannel
         - Name: TF_VAR_cf_template_version
-          Value: 1
+          Value: 2
       LogsConfig:
         CloudWatchLogs:
           Status:  ENABLED
@@ -684,9 +676,9 @@ Resources:
 
 Outputs:
 
-  LicenseParameterName:
-    Description: Name of the Dozuki license Parameter Store parameter
-    Value: !Ref DozukiLicenseParameter
+  CustomerIDParameterName:
+    Description: Name of the Dozuki Customer ID Parameter Store parameter
+    Value: !Ref DozukiCustomerIDParameter
 
   PlanCodeBuildProject:
     Description: Name of the Terraform plan CodeBuild project
