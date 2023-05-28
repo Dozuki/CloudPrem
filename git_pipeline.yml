@@ -9,6 +9,8 @@ Metadata:
         Parameters:
           - DozukiCustomerID
           - Environment
+          - AlarmEmail
+          - SlackWebhookURL
       - Label:
           default: Settings Repository Configuration
         Parameters:
@@ -35,6 +37,10 @@ Metadata:
         default: "Please enter your Dozuki Customer ID in the box below."
       Environment:
         default: "What environment tag should we use for this installation?"
+      AlarmEmail:
+        default: "What email address should we send alarms to?"
+      SlackWebhookURL:
+        default: "What Slack webhook URL should we send alarms to?"
       UseCodeCommit:
         default: "Did you create a regional CodeCommit repository for the configuration for this stack?"
       RepositoryUrl:
@@ -61,6 +67,18 @@ Parameters:
     MinLength: 10
     MaxLength: 30
     Description: The customer ID provided to you by Dozuki
+
+  AlarmEmail:
+    Type: String
+    MinLength: 5
+    MaxLength: 50
+    Description: The email to send CloudWatch alarms to. Either email or Slack is required, both can be used.
+
+  SlackWebhookURL:
+    Type: String
+    MinLength: 20
+    MaxLength: 255
+    Description: The Slack webhook URL to send CloudWatch alarms to. Either email or Slack is required, both can be used.
 
   UseCodeCommit:
     Type: String
@@ -330,6 +348,10 @@ Resources:
           Value: !Ref Customer
         - Name: TF_VAR_environment
           Value: !Ref Environment
+        - Name: TF_VAR_alarm_email
+          Value: !Ref AlarmEmail
+        - Name: TF_VAR_slack_webhook_url
+          Value: !Ref SlackWebhookURL
         - Name: TF_VAR_replicated_channel
           Value: !Ref ReplicatedChannel
         - Name: TF_VAR_cf_template_version
@@ -402,6 +424,10 @@ Resources:
           Value: !Ref Customer
         - Name: TF_VAR_environment
           Value: !Ref Environment
+        - Name: TF_VAR_alarm_email
+          Value: !Ref AlarmEmail
+        - Name: TF_VAR_slack_webhook_url
+          Value: !Ref SlackWebhookURL
         - Name: TF_VAR_replicated_channel
           Value: !Ref ReplicatedChannel
         - Name: TF_VAR_cf_template_version
