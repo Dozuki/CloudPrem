@@ -70,14 +70,14 @@ Parameters:
 
   AlarmEmail:
     Type: String
-    MinLength: 5
     MaxLength: 50
+    Default: ""
     Description: The email to send CloudWatch alarms to. Either email or Slack is required, both can be used.
 
   SlackWebhookURL:
     Type: String
-    MinLength: 20
     MaxLength: 255
+    Default: ""
     Description: The Slack webhook URL to send CloudWatch alarms to. Either email or Slack is required, both can be used.
 
   UseCodeCommit:
