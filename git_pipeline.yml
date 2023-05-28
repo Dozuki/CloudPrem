@@ -321,16 +321,20 @@ Resources:
                   - export AWS_SESSION_TOKEN=$(echo $aws_credentials|jq '.Credentials.SessionToken'|tr -d '"')
               build:
                 commands:
-                - cd ${AWS::Region}/${RepositoryPath}/$MODULE_NAME
+                - mkdir /tmp/terragrunt
+                - cp -a * /tmp/terragrunt
+                - cd /tmp/terragrunt/${AWS::Region}/${RepositoryPath}/$MODULE_NAME
                 - terragrunt init --terragrunt-non-interactive
-                - terragrunt plan -out $CODEBUILD_SRC_DIR/plan.json
-                - 'export PLAN_OUTPUT=$(terragrunt show $CODEBUILD_SRC_DIR/plan.json -no-color | grep "Plan: ")'
+                - terragrunt plan -out plan.binary
+                - 'export PLAN_OUTPUT=$(terragrunt show plan.binary -no-color | grep "Plan: ")'
                 - 'export PLAN_LOGS=${!PLAN_OUTPUT:-No Changes}'
                 - echo "$PLAN_LOGS"
             artifacts:
-              discard-paths: yes
+              base-directory: /tmp/terragrunt/${AWS::Region}/${RepositoryPath}/$MODULE_NAME
               files:
-                - $CODEBUILD_SRC_DIR/plan.json
+                - plan.binary
+                - .terraform.lock.hcl
+                - .terragrunt-cache/**/*
             env:
               exported-variables:
                 - PLAN_LOGS
@@ -404,14 +408,15 @@ Resources:
                   - export AWS_SESSION_TOKEN=$(echo $aws_credentials|jq '.Credentials.SessionToken'|tr -d '"')
               build:
                 commands:
-                - PLAN_PATH=$(pwd)
-                - cd $CODEBUILD_SRC_DIR_SourceCodeArtifact/${AWS::Region}/${RepositoryPath}/$MODULE_NAME
-                - terragrunt init --terragrunt-non-interactive
+                - mkdir /tmp/terragrunt
+                - cp -pR $CODEBUILD_SRC_DIR_SourceCodeArtifact/* /tmp/terragrunt/
+                - find . -maxdepth 1 -exec cp -a {} /tmp/terragrunt/${AWS::Region}/${RepositoryPath}/$MODULE_NAME \;
+                - cd /tmp/terragrunt/${AWS::Region}/${RepositoryPath}/$MODULE_NAME
                 - ${command}
           - command: !If
             - DestroyResources
             - terragrunt refresh && terragrunt destroy -auto-approve
-            - terragrunt apply $PLAN_PATH/plan.json
+            - terragrunt apply plan.binary
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
