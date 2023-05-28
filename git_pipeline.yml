@@ -16,7 +16,6 @@ Metadata:
           - RepositoryUrl
           - RepositoryBranch
           - RepositoryPath
-          - RepositorySecret
       - Label:
           default: Optional Resource Identification Configuration
         Parameters:
@@ -30,7 +29,6 @@ Metadata:
       - Label:
           default: Application Bootstrap Options
         Parameters:
-          - ReplicatedAppSequence
           - ReplicatedChannel
     ParameterLabels:
       DozukiCustomerID:
@@ -53,8 +51,6 @@ Metadata:
         default: "Which action should we execute?"
       ManualApprovalRequired:
         default: "Should we require manual approval for infrastructure changes?"
-      ReplicatedAppSequence:
-        default: "Should we bootstrap a specific replicated sequence when installing the app?"
       ReplicatedChannel:
         default: "Which channel is the above-mentioned sequence deployed to? (Note: This channel must be associated with your customer license)"
 
