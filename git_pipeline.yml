@@ -9,6 +9,8 @@ Metadata:
         Parameters:
           - DozukiCustomerID
           - Environment
+          - AlarmEmail
+          - SlackWebhookURL
       - Label:
           default: Settings Repository Configuration
         Parameters:
@@ -16,11 +18,10 @@ Metadata:
           - RepositoryUrl
           - RepositoryBranch
           - RepositoryPath
-          - RepositorySecret
       - Label:
           default: Optional Resource Identification Configuration
         Parameters:
-          - Identifier
+          - Customer
           - OwnerName
       - Label:
           default: Terraform Options
@@ -30,13 +31,16 @@ Metadata:
       - Label:
           default: Application Bootstrap Options
         Parameters:
-          - ReplicatedAppSequence
           - ReplicatedChannel
     ParameterLabels:
       DozukiCustomerID:
         default: "Please enter your Dozuki Customer ID in the box below."
       Environment:
         default: "What environment tag should we use for this installation?"
+      AlarmEmail:
+        default: "What email address should we send alarms to?"
+      SlackWebhookURL:
+        default: "What Slack webhook URL should we send alarms to?"
       UseCodeCommit:
         default: "Did you create a regional CodeCommit repository for the configuration for this stack?"
       RepositoryUrl:
@@ -45,16 +49,14 @@ Metadata:
         default: "Which branch in the above-mentioned repository should we pull settings from?"
       RepositoryPath:
         default: "Which path in the above-mentioned repository should we pull settings from?"
-      Identifier:
-        default: "What prefix should we use for resource names if any?"
+      Customer:
+        default: "What is the customer name? This will be used for the subdomain. If left blank `dozuki` will be used."
       OwnerName:
         default: "What tag should we add to all resources to identify the stack owner if any?"
       PipelineAction:
         default: "Which action should we execute?"
       ManualApprovalRequired:
         default: "Should we require manual approval for infrastructure changes?"
-      ReplicatedAppSequence:
-        default: "Should we bootstrap a specific replicated sequence when installing the app?"
       ReplicatedChannel:
         default: "Which channel is the above-mentioned sequence deployed to? (Note: This channel must be associated with your customer license)"
 
@@ -65,6 +67,18 @@ Parameters:
     MinLength: 10
     MaxLength: 30
     Description: The customer ID provided to you by Dozuki
+
+  AlarmEmail:
+    Type: String
+    MaxLength: 50
+    Default: ""
+    Description: The email to send CloudWatch alarms to. Either email or Slack is required, both can be used.
+
+  SlackWebhookURL:
+    Type: String
+    MaxLength: 255
+    Default: ""
+    Description: The Slack webhook URL to send CloudWatch alarms to. Either email or Slack is required, both can be used.
 
   UseCodeCommit:
     Type: String
@@ -93,17 +107,17 @@ Parameters:
     AllowedValues: [ Apply, Destroy ]
     Description: Apply will create or update the resources and destroy will delete the Terraform stack
 
-  Identifier:
+  Customer:
     Type: String
     Default: ""
     AllowedPattern: ^[a-z0-9]*$
     MaxLength: 10
     ConstraintDescription: Must be no longer than 10 alpha-numeric characters and must be lowercase.
-    Description: A name identifier to add as prefix to resources names
+    Description: A customer name to add as prefix to resources names and used for the subdomain.
 
   OwnerName:
     Type: String
-    Description: An arbitrary tag name for the owner of the environment pipeline
+    Description: An arbitrary tag name for the creator of the environment pipeline
     Default: ""
 
   Environment:
@@ -131,7 +145,10 @@ Parameters:
 
 Conditions:
 
-  IdentifierSet: !Not [ !Equals [ !Ref Identifier, "" ] ]
+  CustomerSet: !Not [ !Equals [ !Ref Customer, "" ] ]
+  AlarmEmailSet: !Not [ !Equals [ !Ref AlarmEmail, "" ] ]
+  SlackWebhookSet: !Not [ !Equals [ !Ref SlackWebhookURL, "" ] ]
+  ReplicatedChannelSet: !Not [ !Equals [ !Ref ReplicatedChannel, "" ] ]
 
   DestroyResources: !Equals [ !Ref PipelineAction, 'Destroy' ]
 
@@ -155,8 +172,8 @@ Resources:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !If
-        - IdentifierSet
-        - !Sub /${Identifier}/dozuki/${Environment}/customer_id
+        - CustomerSet
+        - !Sub /${Customer}/dozuki/${Environment}/customer_id
         - !Sub /dozuki/${Environment}/customer_id
       Description: The customer ID for your Dozuki license.
       Type: String
@@ -168,8 +185,8 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-deployment
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-${AWS::Region}-deployment
         - !Sub dozuki-${Environment}-${AWS::Region}-deployment
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -181,8 +198,8 @@ Resources:
           Action: sts:AssumeRole
       Policies:
       - PolicyName: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-deployment
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-${AWS::Region}-deployment
         - !Sub dozuki-${Environment}-${AWS::Region}-deployment
         PolicyDocument:
           Statement: # TODO narrow permissions to least privilege for Dozuki deployment
@@ -195,8 +212,8 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-codebuild
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-${AWS::Region}-codebuild
         - !Sub dozuki-${Environment}-${AWS::Region}-codebuild
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -207,8 +224,8 @@ Resources:
           Action: sts:AssumeRole
       Policies:
       - PolicyName: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-codebuild
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-${AWS::Region}-codebuild
         - !Sub dozuki-${Environment}-${AWS::Region}-codebuild
         PolicyDocument:
           Statement:
@@ -232,8 +249,8 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-codepipeline
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-${AWS::Region}-codepipeline
         - !Sub dozuki-${Environment}-${AWS::Region}-codepipeline
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -245,8 +262,8 @@ Resources:
           Action: sts:AssumeRole
       Policies:
       - PolicyName: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-${AWS::Region}-codepipeline
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-${AWS::Region}-codepipeline
         - !Sub dozuki-${Environment}-${AWS::Region}-codepipeline
         PolicyDocument:
           Version: 2012-10-17
@@ -281,8 +298,8 @@ Resources:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-terraform-plan
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-terraform-plan
         - !Sub dozuki-${Environment}-terraform-plan
       Description: !Sub Build project for dozuki-${Environment} Terraform plan
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
@@ -297,26 +314,30 @@ Resources:
                 runtime-versions:
                   golang: 1.15
                 commands:
-                  - curl -L https://storage.googleapis.com/kubernetes-release/release/v1.22.0/bin/linux/amd64/kubectl > /usr/local/bin/kubectl
+                  - curl -sSL https://storage.googleapis.com/kubernetes-release/release/v1.22.0/bin/linux/amd64/kubectl > /usr/local/bin/kubectl
                   - chmod 755 /usr/local/bin/kubectl
-                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/1.3.9/terraform_1.3.9_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
-                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.37.1/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
+                  - wget -qO terraform.zip https://releases.hashicorp.com/terraform/1.3.9/terraform_1.3.9_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
+                  - wget -qO /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.37.1/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
                   - aws_credentials=$(aws sts assume-role --role-arn ${DeploymentRole.Arn} --role-session-name "Terraform")
                   - export AWS_ACCESS_KEY_ID=$(echo $aws_credentials|jq '.Credentials.AccessKeyId'|tr -d '"')
                   - export AWS_SECRET_ACCESS_KEY=$(echo $aws_credentials|jq '.Credentials.SecretAccessKey'|tr -d '"')
                   - export AWS_SESSION_TOKEN=$(echo $aws_credentials|jq '.Credentials.SessionToken'|tr -d '"')
               build:
                 commands:
-                - cd ${AWS::Region}/${RepositoryPath}/$MODULE_NAME
+                - mkdir /tmp/terragrunt
+                - cp -a * /tmp/terragrunt
+                - cd /tmp/terragrunt/${AWS::Region}/${RepositoryPath}/$MODULE_NAME
                 - terragrunt init --terragrunt-non-interactive
-                - terragrunt plan -out $CODEBUILD_SRC_DIR/plan.json
-                - 'export PLAN_OUTPUT=$(terragrunt show $CODEBUILD_SRC_DIR/plan.json -no-color | grep "Plan: ")'
+                - terragrunt plan -out plan.binary
+                - 'export PLAN_OUTPUT=$(terragrunt show plan.binary -no-color | grep "Plan: ")'
                 - 'export PLAN_LOGS=${!PLAN_OUTPUT:-No Changes}'
                 - echo "$PLAN_LOGS"
             artifacts:
-              discard-paths: yes
+              base-directory: /tmp/terragrunt/${AWS::Region}/${RepositoryPath}/$MODULE_NAME
               files:
-                - $CODEBUILD_SRC_DIR/plan.json
+                - plan.binary
+                - .terraform.lock.hcl
+                - .terragrunt-cache/**/*
             env:
               exported-variables:
                 - PLAN_LOGS
@@ -330,18 +351,32 @@ Resources:
         EnvironmentVariables:
         - Name: Environment
           Value: !Ref Environment
-        - Name: TF_INPUT
-          Value: 'true'
-        - Name: TF_VAR_identifier
-          Value: !Ref Identifier
         - Name: TF_VAR_environment
           Value: !Ref Environment
-        - Name: TF_VAR_replicated_channel
-          Value: !Ref ReplicatedChannel
         - Name: TF_VAR_cf_template_version
-          Value: 3
+          Value: 5
         - Name: TF_CLI_ARGS_plan
           Value: !If [ DestroyResources, "-destroy", ""]
+        - !If
+          - CustomerSet
+          - Name: TF_VAR_customer
+            Value: !Ref Customer
+          - !Ref AWS::NoValue
+        - !If
+          - AlarmEmailSet
+          - Name: TF_VAR_alarm_email
+            Value: !Ref AlarmEmail
+          - !Ref AWS::NoValue
+        - !If
+          - SlackWebhookSet
+          - Name: TF_VAR_slack_webhook_url
+            Value: !Ref SlackWebhookURL
+          - !Ref AWS::NoValue
+        - !If
+          - ReplicatedChannelSet
+          - Name: TF_VAR_replicated_channel
+            Value: !Ref ReplicatedChannel
+          - !Ref AWS::NoValue
       LogsConfig:
         CloudWatchLogs:
           Status:  ENABLED
@@ -349,8 +384,8 @@ Resources:
       Tags:
       - Key: Name
         Value: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-terraform-plan
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-terraform-plan
         - !Sub dozuki-${Environment}-terraform-plan
       - Key: Owner
         Value: !Ref OwnerName
@@ -361,8 +396,8 @@ Resources:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-terraform-apply
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-terraform-apply
         - !Sub dozuki-${Environment}-terraform-apply
       Description: !Sub Build project for dozuki-${Environment} Terraform apply
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
@@ -378,24 +413,25 @@ Resources:
                 runtime-versions:
                   golang: 1.15
                 commands:
-                  - curl -L https://storage.googleapis.com/kubernetes-release/release/v1.22.0/bin/linux/amd64/kubectl > /usr/local/bin/kubectl
+                  - curl -sSL https://storage.googleapis.com/kubernetes-release/release/v1.22.0/bin/linux/amd64/kubectl > /usr/local/bin/kubectl
                   - chmod 755 /usr/local/bin/kubectl
-                  - wget -O terraform.zip https://releases.hashicorp.com/terraform/1.3.9/terraform_1.3.9_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
-                  - wget -O /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.37.1/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
+                  - wget -qO terraform.zip https://releases.hashicorp.com/terraform/1.3.9/terraform_1.3.9_linux_amd64.zip && unzip terraform.zip && mv terraform /bin && rm terraform.zip
+                  - wget -qO /bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.37.1/terragrunt_linux_amd64 && chmod +x /bin/terragrunt
                   - aws_credentials=$(aws sts assume-role --role-arn ${DeploymentRole.Arn} --role-session-name "Terraform")
                   - export AWS_ACCESS_KEY_ID=$(echo $aws_credentials|jq '.Credentials.AccessKeyId'|tr -d '"')
                   - export AWS_SECRET_ACCESS_KEY=$(echo $aws_credentials|jq '.Credentials.SecretAccessKey'|tr -d '"')
                   - export AWS_SESSION_TOKEN=$(echo $aws_credentials|jq '.Credentials.SessionToken'|tr -d '"')
               build:
                 commands:
-                - PLAN_PATH=$(pwd)
-                - cd $CODEBUILD_SRC_DIR_SourceCodeArtifact/${AWS::Region}/${RepositoryPath}/$MODULE_NAME
-                - terragrunt init --terragrunt-non-interactive
+                - mkdir /tmp/terragrunt
+                - cp -pR $CODEBUILD_SRC_DIR_SourceCodeArtifact/* /tmp/terragrunt/
+                - find . -maxdepth 1 -exec cp -a {} /tmp/terragrunt/${AWS::Region}/${RepositoryPath}/$MODULE_NAME \;
+                - cd /tmp/terragrunt/${AWS::Region}/${RepositoryPath}/$MODULE_NAME
                 - ${command}
           - command: !If
             - DestroyResources
             - terragrunt refresh && terragrunt destroy -auto-approve
-            - terragrunt apply $PLAN_PATH/plan.json
+            - terragrunt apply plan.binary
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
@@ -404,14 +440,30 @@ Resources:
         EnvironmentVariables:
         - Name: Environment
           Value: !Ref Environment
-        - Name: TF_VAR_identifier
-          Value: !Ref Identifier
         - Name: TF_VAR_environment
           Value: !Ref Environment
-        - Name: TF_VAR_replicated_channel
-          Value: !Ref ReplicatedChannel
         - Name: TF_VAR_cf_template_version
-          Value: 3
+          Value: 5
+        - !If
+          - CustomerSet
+          - Name: TF_VAR_customer
+            Value: !Ref Customer
+          - !Ref AWS::NoValue
+        - !If
+          - AlarmEmailSet
+          - Name: TF_VAR_alarm_email
+            Value: !Ref AlarmEmail
+          - !Ref AWS::NoValue
+        - !If
+          - SlackWebhookSet
+          - Name: TF_VAR_slack_webhook_url
+            Value: !Ref SlackWebhookURL
+          - !Ref AWS::NoValue
+        - !If
+          - ReplicatedChannelSet
+          - Name: TF_VAR_replicated_channel
+            Value: !Ref ReplicatedChannel
+          - !Ref AWS::NoValue
       LogsConfig:
         CloudWatchLogs:
           Status:  ENABLED
@@ -419,8 +471,8 @@ Resources:
       Tags:
       - Key: Name
         Value: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-terraform-apply
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-terraform-apply
         - !Sub dozuki-${Environment}-terraform-apply
       - Key: Owner
         Value: !Ref OwnerName
@@ -434,8 +486,8 @@ Resources:
     Condition: CreateResources
     Properties:
       Name: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-apply
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-apply
         - !Sub dozuki-${Environment}-apply
       RoleArn: !GetAtt CodePipelineServiceRole.Arn
       Stages:
@@ -581,8 +633,8 @@ Resources:
     Condition: DestroyResources
     Properties:
       Name: !If
-        - IdentifierSet
-        - !Sub ${Identifier}-dozuki-${Environment}-destroy
+        - CustomerSet
+        - !Sub ${Customer}-dozuki-${Environment}-destroy
         - !Sub dozuki-${Environment}-destroy
       RoleArn: !GetAtt CodePipelineServiceRole.Arn
       Stages:
